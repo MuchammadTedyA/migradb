@@ -234,8 +234,7 @@ The generator automatically strips known architectural prefixes and singularizes
 |-------------|--------------------|--------------|
 | `"go"` / `"golang"` | Go struct files (`.go`) | `json` & `db` tags, pointer types (`*string`, `*time.Time`) for nullable fields, relation navigation pointers |
 | `"node"` / `"ts"` | TypeScript files (`.ts`) + `index.ts` | TypeScript interfaces, optional `?` properties, `Date` types, and centralized barrel export |
-| `"python"` / `"py"` | Python `models.py` | SQLAlchemy 2.0 declarative models (`Mapped[T]`, `mapped_column`, `relationship`) |
-| `"csharp"` / `"cs"` | C# entity files (`.cs`) + `DbContext.cs` | EF Core annotations (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`), partial classes, and DbContext |
+| `"python"` / `"py"` | Python `models.py` | SQLAlchemy 2.0 declarative models (`Mapped[T]`, `mapped_column`, `relationship`) |\
 | `"rust"` / `"rs"` | Rust struct files (`.rs`) + `mod.rs` | `serde` serialization, `Option<T>` for nullable columns, and `sqlx::FromRow` derivation |
 | `"sql"` / `"ddl"` | SQL DDL scripts (`schema.sql`) | Idempotent `CREATE TABLE IF NOT EXISTS`, constraints, and foreign keys for PostgreSQL, MySQL, and SQLite |
 
