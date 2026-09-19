@@ -113,7 +113,7 @@ func main() {
     // Generate Go model classes from a DrawDB visual schema export
     modelResult, err := m.GenerateModels(
         "schema/drawdb.json", // DrawDB JSON file
-        "go",                 // Target language: go, node, python, or csharp
+        "go",                 // Target language: go, node, or python
         "./internal/models",  // Target directory
         "models",             // Package or namespace name
     )
