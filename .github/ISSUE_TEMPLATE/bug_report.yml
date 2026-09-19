@@ -1,0 +1,115 @@
+name: 🐛 Bug Report
+description: Report a reproducible bug or unexpected behavior in MigrDB
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! 
+        Before submitting, please make sure you've searched [existing issues](https://github.com/MuchammadTedyA/migradb/issues) to verify this bug has not already been reported.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component / Binding
+      description: Which part of MigrDB is experiencing the issue?
+      options:
+        - "Core Engine (Rust)"
+        - "Go Binding / CGO"
+        - "Node.js (npm / napi)"
+        - "Python (PyO3)"
+        - "Codegen - Go Structs"
+        - "Codegen - TypeScript / Node"
+        - "Codegen - Python SQLAlchemy 2.0"
+        - "Codegen - C# EF Core"
+        - "DrawDB Schema Parser"
+        - "CLI / Build Tools"
+        - "Other / Unknown"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Target Database Engine
+      description: Which database are you executing migrations against or generating models for?
+      options:
+        - "PostgreSQL"
+        - "MySQL / MariaDB"
+        - "SQLite"
+        - "SQL Server (MSSQL)"
+        - "Not Applicable / Database Agnostic"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: "e.g., When running migrations with IF NOT EXISTS, the engine throws an unexpected parsing error..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce & Minimal Example
+      description: |
+        Provide step-by-step instructions to reproduce the issue. Include a minimal code snippet, SQL migration, or DrawDB schema if possible.
+      placeholder: |
+        1. Define migration: `20260919120000_create_users.sql` with content: `...`
+        2. Run migrator with binding `...`
+        3. See error: `...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+      placeholder: "Migration should apply cleanly without errors."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or Error Output
+      description: Paste any error messages, terminal logs, or stack traces here.
+      render: shell
+      placeholder: "Paste console output or crash traces here..."
+
+  - type: input
+    id: version
+    attributes:
+      label: MigrDB Version
+      description: Which version of MigrDB are you using?
+      placeholder: "e.g., 0.1.0 (or git commit hash)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment & Runtime Details
+      description: Please share details about your operating system and language runtimes.
+      value: |
+        - OS: [e.g. Windows 11 / Ubuntu 22.04 / macOS Sonoma]
+        - Rust version: [e.g. 1.75.0]
+        - Go / Node / Python version: [e.g. Go 1.22, Node 20.x, Python 3.11]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Self-Check
+      options:
+        - label: "I have confirmed this issue is reproducible on the latest release."
+          required: false
+        - label: "I have searched existing issues and verified this is not a duplicate."
+          required: true

@@ -1,0 +1,5 @@
+# Code Owners for MigrDB
+# These owners will be automatically requested for review when someone opens a pull request.
+# When branch protection "Require review from Code Owners" is enabled, approval from here is required before merging.
+
+* @MuchammadTedyA

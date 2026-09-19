@@ -1,0 +1,63 @@
+name: 💡 Feature Request
+description: Propose a new feature, database dialect, or language binding for MigrDB
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an enhancement for MigrDB! 
+        Please provide details on what you'd like to see added or improved.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Target Area
+      description: Which part of MigrDB does this request relate to?
+      options:
+        - "Core Engine (Rust)"
+        - "New Database Engine Dialect (e.g., Oracle, CockroachDB, SQLite)"
+        - "New Language Binding (e.g., Java, Ruby, Elixir)"
+        - "Go Binding / CGO"
+        - "Node.js (npm / napi)"
+        - "Python (PyO3)"
+        - "Codegen - Go Structs"
+        - "Codegen - TypeScript / Node"
+        - "Codegen - Python SQLAlchemy"
+        - "Codegen - C# EF Core"
+        - "DrawDB Schema Parser"
+        - "CLI / Developer Tooling"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Motivation
+      description: Is your feature request related to a problem or limitation?
+      placeholder: "A clear and concise description of what the problem is. e.g. I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see implemented.
+      placeholder: "Provide an overview of the proposed API, configuration syntax, or functionality..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered.
+      placeholder: "Any workarounds or other approaches you looked into..."
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Add any other context, code mockups, or diagrams about the feature request here.

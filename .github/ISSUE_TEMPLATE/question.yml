@@ -1,0 +1,44 @@
+name: ❓ Question & Support
+description: Ask a question about using MigrDB or get help with implementation
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Need help using MigrDB or integrating it into your stack? Ask your question below.
+        Please check the [README](https://github.com/MuchammadTedyA/migradb#readme) and existing issues first.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component / Binding
+      description: Which area is your question about?
+      options:
+        - "General Usage"
+        - "Core Engine (Rust)"
+        - "Go Binding"
+        - "Node.js (npm)"
+        - "Python"
+        - "Model Codegen (Go / TS / Python / C#)"
+        - "DrawDB Schemas"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like help with?
+      placeholder: "Describe what you are trying to achieve and where you are encountering difficulty..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Code Example or Context
+      description: Share any code, configuration, or migration files you are working with.
+      render: shell
+      placeholder: "Paste relevant code or configuration here..."

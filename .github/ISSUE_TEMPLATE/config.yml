@@ -1,0 +1,6 @@
+# Configuration for GitHub Issue Templates
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation & Guides
+    url: https://github.com/MuchammadTedyA/migradb#readme
+    about: Read the official documentation and usage guides for MigrDB.
