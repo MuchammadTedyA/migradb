@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/centra/migration"
+	migration "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -49,7 +49,7 @@ func main() {
 	fmt.Printf("Created migration at: %s\n", createResult.Path)
 
 	fmt.Println("\n=== Generating Model Classes ===")
-	schemaPath := "../../centra-api/schema/drawdb.json"
+	schemaPath := "./drawdb.json"
 	modelResult, err := m.GenerateModels(schemaPath, "go", "./generated_models", "models")
 	if err != nil {
 		fmt.Printf("Model generation skipped: %v\n", err)

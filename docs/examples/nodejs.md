@@ -14,7 +14,7 @@ Practical examples for using MigrDB in Node.js projects.
 ## Basic Usage
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('./migrations');
 
@@ -39,7 +39,7 @@ if (result.success) {
 
 ```javascript
 const express = require('express');
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const app = express();
 const m = new Migrator('./migrations');
@@ -79,7 +79,7 @@ app.listen(3000, () => {
 
 ```javascript
 const fastify = require('fastify')({ logger: true });
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('./migrations');
 
@@ -120,7 +120,7 @@ fastify.listen({ port: 3000 }, (err) => {
 ```javascript
 #!/usr/bin/env node
 
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 const fs = require('fs');
 const path = require('path');
 
@@ -248,7 +248,7 @@ main();
 ## Multi-Database
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const databases = {
     users: new Migrator('./migrations/users'),
@@ -289,7 +289,7 @@ runAllMigrations();
 ## Migration Generator
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 class TableMigration {
     constructor(migrator) {
@@ -364,7 +364,7 @@ tm.addIndex('m_users', ['email', 'username'], true);
 ## Environment-Based Configuration
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 const path = require('path');
 
 const config = {

@@ -56,7 +56,7 @@ A high-performance SQL database migration and schema modeling library built with
   - **Go**: Structs with `json` and `db` struct tags, pointer types for nullable columns, and relation navigation fields
   - **Node.js / TypeScript**: Clean TypeScript interfaces and classes with `Date`, `number`, and `string` mappings plus barrel exports (`index.ts`)
   - **Python**: Modern SQLAlchemy 2.0 declarative models using `Mapped[...]`, `mapped_column()`, and `relationship()`
-  - **C#**: Full Entity Framework Core entity classes with data annotations (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`) and a ready-to-use `CentraDbContext`
+  - **C#**: Full Entity Framework Core entity classes with data annotations (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`) and a ready-to-use `MigraDbContext`
 - **DrawDB Schema Integration** - Direct ingestion of DrawDB JSON diagrams with automatic table prefix stripping (`m_`, `t_`, `sys_`, `map_`), singularization, and 1-to-many relationship mapping
 - **Zero-CGO on Windows** - Go bindings load `migration_engine.dll` dynamically via `syscall.NewLazyDLL` without requiring GCC, MinGW, or CGO tooling
 - **Multi-language support** - Bindings for Go, Node.js (via napi-rs), and Python (via PyO3) powered by a single compiled Rust core
@@ -85,7 +85,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/centra/migration"
+    migration "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -120,11 +120,11 @@ func main() {
 ### Node.js (npm)
 
 ```bash
-npm install @centra/migradb
+npm install migradb
 ```
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('./migrations');
 
@@ -345,4 +345,4 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 ## License
 
-[MIT](LICENSE) © Centra Team
+[MIT](LICENSE) © Muchammad Tedy

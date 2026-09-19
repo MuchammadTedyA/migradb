@@ -32,15 +32,17 @@ function loadNativeBinding() {
   const triple = `${archPart}-${osPart}`;
   const nativeDir = join(__dirname, 'native');
 
-  const possibleNames = [
-    `migradb.${triple}.node`,
-    `migration_engine_napi.${triple}.node`,
+  const possiblePaths = [
+    join(__dirname, 'migradb.node'),
+    join(__dirname, 'index.node'),
+    join(__dirname, `migradb.${triple}.node`),
+    join(nativeDir, `migradb.${triple}.node`),
+    join(nativeDir, `migration_engine_napi.${triple}.node`),
   ];
 
-  for (const name of possibleNames) {
-    const path = join(nativeDir, name);
-    if (existsSync(path)) {
-      return require(path);
+  for (const p of possiblePaths) {
+    if (existsSync(p)) {
+      return require(p);
     }
   }
 

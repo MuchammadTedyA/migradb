@@ -54,7 +54,7 @@ pub fn generate_models<P: AsRef<Path>, Q: AsRef<Path>>(
         TargetLanguage::Node => node_ts::generate_node_ts_models(&schema),
         TargetLanguage::Python => python::generate_python_models(&schema),
         TargetLanguage::CSharp => {
-            let ns = pkg_or_namespace.unwrap_or("Centra.Models");
+            let ns = pkg_or_namespace.unwrap_or("MigraDB.Models");
             csharp::generate_csharp_models(&schema, ns)
         }
     };
@@ -159,7 +159,7 @@ mod tests {
         fs::write(&schema_file, SAMPLE_DRAWDB).unwrap();
 
         let out_dir = dir.path().join("out_cs");
-        let result = generate_models(&schema_file, TargetLanguage::CSharp, &out_dir, Some("Centra.Models"));
+        let result = generate_models(&schema_file, TargetLanguage::CSharp, &out_dir, Some("MigraDB.Models"));
         assert!(result.is_ok());
         let cs_content = fs::read_to_string(out_dir.join("Branch.cs")).unwrap();
         assert!(cs_content.contains("public partial class Branch"));

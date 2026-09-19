@@ -33,7 +33,7 @@ pub fn generate_csharp_models(schema: &SchemaModel, namespace: &str) -> Vec<(Str
 
     // DbContext class
     let db_context_content = generate_cs_dbcontext(schema, namespace);
-    files.push(("CentraDbContext.cs".to_string(), db_context_content));
+    files.push(("MigraDbContext.cs".to_string(), db_context_content));
 
     files
 }
@@ -142,8 +142,8 @@ fn generate_cs_dbcontext(schema: &SchemaModel, namespace: &str) -> String {
     out.push_str("using System;\n");
     out.push_str("using Microsoft.EntityFrameworkCore;\n\n");
     out.push_str(&format!("namespace {}\n{{\n", namespace));
-    out.push_str("    public partial class CentraDbContext : DbContext\n    {\n");
-    out.push_str("        public CentraDbContext(DbContextOptions<CentraDbContext> options) : base(options) { }\n\n");
+    out.push_str("    public partial class MigraDbContext : DbContext\n    {\n");
+    out.push_str("        public MigraDbContext(DbContextOptions<MigraDbContext> options) : base(options) { }\n\n");
 
     for table in &schema.tables {
         let child_clean = &table.entity_name;

@@ -17,25 +17,25 @@ Complete guide for using MigrDB in Node.js projects.
 ### NPM
 
 ```bash
-npm install @centra/migradb
+npm install migradb
 ```
 
 ### Yarn
 
 ```bash
-yarn add @centra/migradb
+yarn add migradb
 ```
 
 ### PNPM
 
 ```bash
-pnpm add @centra/migradb
+pnpm add migradb
 ```
 
 ## Quick Start
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 // Create migrator instance
 const m = new Migrator('./migrations');
@@ -53,7 +53,7 @@ if (result.success) {
 ### ES Modules
 
 ```javascript
-import { Migrator } from '@centra/migradb';
+import { Migrator } from 'migradb';
 
 const m = new Migrator('./migrations');
 const result = m.run();
@@ -236,7 +236,7 @@ if (result.removed) {
 ### Basic Migration Workflow
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('./migrations');
 
@@ -291,7 +291,7 @@ if (result.success) {
 
 ```javascript
 #!/usr/bin/env node
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 const path = require('path');
 
 const migrationsDir = process.argv[2] || './migrations';
@@ -345,7 +345,7 @@ switch (command) {
 
 ```javascript
 const express = require('express');
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const app = express();
 const m = new Migrator('./migrations');
@@ -380,7 +380,7 @@ app.listen(3000, () => {
 
 ```javascript
 const fastify = require('fastify')({ logger: true });
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('./migrations');
 
@@ -414,7 +414,7 @@ fastify.listen({ port: 3000 }, (err) => {
 
 ```typescript
 import { Module, OnModuleInit } from '@nestjs/common';
-import { Migrator } from '@centra/migradb';
+import { Migrator } from 'migradb';
 
 @Injectable()
 export class MigrationService implements OnModuleInit {
@@ -454,7 +454,7 @@ export class MigrationModule {}
 The library includes TypeScript definitions out of the box.
 
 ```typescript
-import { Migrator, RunResult, StatusResult } from '@centra/migradb';
+import { Migrator, RunResult, StatusResult } from 'migradb';
 
 const m = new Migrator('./migrations');
 
@@ -488,7 +488,7 @@ export interface MigrationOptions {
 }
 
 // utils/migration.ts
-import { Migrator, CreateResult } from '@centra/migradb';
+import { Migrator, CreateResult } from 'migradb';
 
 export function createTableMigration(
     migrator: Migrator,

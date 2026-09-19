@@ -1,4 +1,4 @@
-use crate::error::{MigrationError, Result};
+use crate::error::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -74,6 +74,7 @@ impl MigrationTracker for InMemoryTracker {
 }
 
 pub struct SqlTracker {
+    #[allow(dead_code)]
     connection_string: String,
 }
 

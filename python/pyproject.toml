@@ -21,4 +21,3 @@ classifiers = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-manifest-path = "Cargo.toml"

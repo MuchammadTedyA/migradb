@@ -1,11 +1,11 @@
 # Go API Reference
 
-Complete API reference for the MigrDB Go package (`github.com/centra/migration`).
+Complete API reference for the MigrDB Go package (`github.com/MuchammadTedyA/migradb/go`).
 
 ## Package: `migration`
 
 ```go
-import "github.com/centra/migration"
+import migration "github.com/MuchammadTedyA/migradb/go"
 ```
 
 ## Platform Architecture & Runtime Loading
@@ -243,7 +243,7 @@ Generates strongly typed entity models and database context classes directly fro
 | `schemaPath` | `string` | (Required) | Path to the exported DrawDB JSON file |
 | `targetLang` | `string` | `"go"` | Target language: `"go"`, `"node"` / `"ts"`, `"python"`, `"csharp"` |
 | `outputDir` | `string` | `"models"` | Output directory where files will be created |
-| `pkgName` | `string` | Language default | Package name (`"models"`) for Go, or Namespace (`"Centra.Models"`) for C# |
+| `pkgName` | `string` | Language default | Package name (`"models"`) for Go, or Namespace (`"MigraDB.Models"`) for C# |
 
 **Behavior & Features:**
 - **Prefix Stripping**: Automatically strips `m_` (Master), `t_` (Transaction), `sys_` (System), `map_` (Mapping). E.g., `m_companies` becomes entity `Company`.

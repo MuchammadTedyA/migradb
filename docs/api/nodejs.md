@@ -2,12 +2,12 @@
 
 Complete API reference for the MigrDB Node.js module.
 
-## Module: `@centra/migradb`
+## Module: `migradb`
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 // or
-import { Migrator } from '@centra/migradb';
+import { Migrator } from 'migradb';
 ```
 
 ## Classes
@@ -260,7 +260,7 @@ console.log(`Applied ${result.applied} migrations`);
 
 ## TypeScript Support
 
-The library includes native TypeScript declarations for the migration engine. All types are exported from `@centra/migradb`:
+The library includes native TypeScript declarations for the migration engine. All types are exported from `migradb`:
 
 ```typescript
 import {
@@ -271,7 +271,7 @@ import {
     StatusResult,
     CreateResult,
     RemoveResult
-} from '@centra/migradb';
+} from 'migradb';
 ```
 
 ## Generated TypeScript Entity Models

@@ -56,7 +56,7 @@ package main
 import (
     "context"
     "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -85,7 +85,7 @@ func main() {
 
 ```javascript
 const { Pool } = require('pg');
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const pool = new Pool({
     connectionString: 'postgres://user:pass@localhost/dbname'

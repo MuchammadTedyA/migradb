@@ -2,7 +2,7 @@
 name = "migration-engine"
 version = "0.1.0"
 edition = "2021"
-authors = ["Centra Team"]
+authors = ["Muchammad Tedy"]
 description = "Core migration engine for SQL database migrations"
 
 [lib]

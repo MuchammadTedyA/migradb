@@ -32,7 +32,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/centra/migration"
+    migration "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -62,7 +62,7 @@ func main() {
 ### Node.js
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('./migrations');
 const result = m.run();
@@ -157,10 +157,10 @@ else:
 
 ```bash
 # Go
-go get github.com/centra/migration
+go get github.com/MuchammadTedyA/migradb/go
 
 # Node.js
-npm install @centra/migradb
+npm install migradb
 
 # Python
 pip install migradb
@@ -190,7 +190,7 @@ cargo build --release
 ### API Reference
 
 - [Go API Reference](api/go.md) - Structs, methods (`Run`, `Status`, `Create`, `GenerateModels`), and DLL resolution
-- [Node.js API Reference](api/nodejs.md) - `@centra/migradb` class and interface documentation
+- [Node.js API Reference](api/nodejs.md) - `migradb` class and interface documentation
 - [Python API Reference](api/python.md) - `migradb` class and type hint documentation
 
 ### Examples

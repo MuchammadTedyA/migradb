@@ -15,7 +15,7 @@ Thank you for your interest in contributing to MigrDB!
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/your-username/migradb.git`
+2. Clone your fork: `git clone https://github.com/MuchammadTedyA/migradb.git`
 3. Create a branch: `git checkout -b feature/your-feature`
 
 ## Development Setup
@@ -60,7 +60,7 @@ migradb/
 │       ├── node_ts.rs        # TypeScript interface & barrel generation
 │       ├── python.rs         # SQLAlchemy 2.0 declarative code generation
 │       └── csharp.rs         # EF Core entity & DbContext generation
-├── go/                       # Go language bindings (github.com/centra/migration)
+├── go/                       # Go language bindings (github.com/MuchammadTedyA/migradb/go)
 │   ├── go.mod                # Go module definition
 │   ├── types.go              # Shared Go types and result structs
 │   ├── migrator_windows.go   # Zero-CGO Windows dynamic DLL loading
@@ -68,7 +68,7 @@ migradb/
 │   ├── migrator_nocgo.go     # Fallback stubs when compiled without CGO
 │   ├── migrator_test.go      # Go integration & codegen tests
 │   └── example/              # Example Go application
-├── npm/                      # Node.js bindings (@centra/migradb)
+├── npm/                      # Node.js bindings (migradb)
 │   ├── src/lib.rs            # napi-rs Rust wrapper
 │   ├── index.js              # Node.js entrypoint
 │   ├── index.d.ts            # TypeScript definitions
