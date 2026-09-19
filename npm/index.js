@@ -53,6 +53,7 @@ function loadNativeBinding() {
 }
 
 const native = loadNativeBinding();
+const { runOnDatabase, statusOnDatabase } = require('./runner');
 
 module.exports = {
   Migrator: native.Migrator,
@@ -62,4 +63,6 @@ module.exports = {
   StatusResult: native.StatusResult,
   CreateResult: native.CreateResult,
   RemoveResult: native.RemoveResult,
+  runOnDatabase,
+  statusOnDatabase,
 };

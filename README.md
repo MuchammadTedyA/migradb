@@ -52,11 +52,18 @@ A high-performance SQL database migration and schema modeling library built with
 - **Transactional safety** - Each migration executes within an atomic transaction
 - **Immutable history** - Never edit old migrations; create new migrations to roll forward or reverse changes
 - **Idempotent SQL** - Native support for `IF NOT EXISTS` / `IF EXISTS` schema guards
+- **Standalone CLI Tool** - Native `migradb` binary for running migrations, inspecting status, and generating code without language dependencies
 - **Ecosystem-aware Model Class Generation** - Entity Developer / EF Core-style code generation directly from DrawDB JSON schemas:
   - **Go**: Structs with `json` and `db` struct tags, pointer types for nullable columns, and relation navigation fields
   - **Node.js / TypeScript**: Clean TypeScript interfaces and classes with `Date`, `number`, and `string` mappings plus barrel exports (`index.ts`)
   - **Python**: Modern SQLAlchemy 2.0 declarative models using `Mapped[...]`, `mapped_column()`, and `relationship()`
   - **C#**: Full Entity Framework Core entity classes with data annotations (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`) and a ready-to-use `MigraDbContext`
+  - **Rust**: Serde-serializable structs with `Option<T>` for nullables and `sqlx::FromRow` derivation
+  - **SQL DDL**: Complete `CREATE TABLE` scripts with constraints and foreign keys for PostgreSQL, MySQL, and SQLite
+- **Direct Database Execution Helpers** - 1-line transaction-safe runners for live databases:
+  - **Go**: `RunDB(ctx, db, "./migrations")` with standard `*sql.DB`
+  - **Node.js**: `runOnDatabase(client, "./migrations")` with `pg`, `mysql2`, or `better-sqlite3`
+  - **Python**: `run_on_connection(conn, "./migrations")` with standard DB-API 2.0 or SQLite
 - **DrawDB Schema Integration** - Direct ingestion of DrawDB JSON diagrams with automatic table prefix stripping (`m_`, `t_`, `sys_`, `map_`), singularization, and 1-to-many relationship mapping
 - **Zero-CGO on Windows** - Go bindings load `migration_engine.dll` dynamically via `syscall.NewLazyDLL` without requiring GCC, MinGW, or CGO tooling
 - **Multi-language support** - Bindings for Go, Node.js (via napi-rs), and Python (via PyO3) powered by a single compiled Rust core
@@ -229,8 +236,31 @@ The generator automatically strips known architectural prefixes and singularizes
 | `"node"` / `"ts"` | TypeScript files (`.ts`) + `index.ts` | TypeScript interfaces, optional `?` properties, `Date` types, and centralized barrel export |
 | `"python"` / `"py"` | Python `models.py` | SQLAlchemy 2.0 declarative models (`Mapped[T]`, `mapped_column`, `relationship`) |
 | `"csharp"` / `"cs"` | C# entity files (`.cs`) + `DbContext.cs` | EF Core annotations (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`), partial classes, and DbContext |
+| `"rust"` / `"rs"` | Rust struct files (`.rs`) + `mod.rs` | `serde` serialization, `Option<T>` for nullable columns, and `sqlx::FromRow` derivation |
+| `"sql"` / `"ddl"` | SQL DDL scripts (`schema.sql`) | Idempotent `CREATE TABLE IF NOT EXISTS`, constraints, and foreign keys for PostgreSQL, MySQL, and SQLite |
 
 ---
+
+## Standalone CLI Tool
+
+MigraDB includes a standalone compiled CLI tool (`migradb`):
+
+```bash
+# Initialize a new migrations project
+migradb init --dir ./migrations
+
+# Create a new timestamped migration file
+migradb create add_users_table --dir ./migrations
+
+# Inspect migration status table
+migradb status --dir ./migrations
+
+# Generate Rust models from DrawDB diagram
+migradb generate --schema drawdb.json --lang rust --out ./src/models
+
+# Generate SQL DDL for PostgreSQL from DrawDB diagram
+migradb generate --schema drawdb.json --lang sql --pkg postgres --out ./migrations
+```
 
 ## API Reference
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Standalone CLI tool (`migradb`)** with subcommands for `init`, `create`, `status`, and `generate`.
+- **Rust model generator (`TargetLanguage::Rust`)** creating serde-compatible models and `sqlx::FromRow` derivations.
+- **SQL DDL generator (`TargetLanguage::Sql`)** creating schema tables, constraints, and foreign keys for PostgreSQL, MySQL, and SQLite.
+- **Direct Database Execution Helpers**:
+  - Go: `RunDB` and `StatusDB` for transaction-safe migrations using Go standard library `database/sql`.
+  - Node.js: `runOnDatabase` and `statusOnDatabase` supporting `pg`, `mysql2`, and `better-sqlite3`.
+  - Python: `run_on_connection` and `status_on_connection` supporting standard Python DB-API 2.0 connections.
+
 ## [0.1.0] - 2026-09-12
 
 ### Added

@@ -76,4 +76,26 @@ func TestGenerateModels(t *testing.T) {
 		t.Fatalf("Expected generated C# files, got count %d", resCS.Count)
 	}
 	t.Logf("Generated %d C# model files", resCS.Count)
+
+	// 5. Test Rust model generation
+	rustOut := filepath.Join(tempDir, "rust")
+	resRust, err := m.GenerateModels(schemaPath, "rust", rustOut, "")
+	if err != nil {
+		t.Fatalf("GenerateModels(rust) failed: %v", err)
+	}
+	if !resRust.Success || resRust.Count == 0 {
+		t.Fatalf("Expected generated Rust files, got count %d", resRust.Count)
+	}
+	t.Logf("Generated %d Rust model files", resRust.Count)
+
+	// 6. Test SQL DDL generation
+	sqlOut := filepath.Join(tempDir, "sql")
+	resSQL, err := m.GenerateModels(schemaPath, "sql", sqlOut, "postgres")
+	if err != nil {
+		t.Fatalf("GenerateModels(sql) failed: %v", err)
+	}
+	if !resSQL.Success || resSQL.Count == 0 {
+		t.Fatalf("Expected generated SQL files, got count %d", resSQL.Count)
+	}
+	t.Logf("Generated %d SQL files", resSQL.Count)
 }

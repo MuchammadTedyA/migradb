@@ -1,0 +1,36 @@
+{
+  "tables": [
+    {
+      "id": "t_company",
+      "name": "m_companies",
+      "comment": "Company master table",
+      "fields": [
+        { "id": "f_c_id", "name": "id", "type": "BIGINT", "primary": true, "notNull": true },
+        { "id": "f_c_name", "name": "name", "type": "VARCHAR", "size": "255", "notNull": true },
+        { "id": "f_c_created", "name": "created_at", "type": "TIMESTAMPTZ", "notNull": true, "default": "CURRENT_TIMESTAMP" }
+      ]
+    },
+    {
+      "id": "t_branch",
+      "name": "m_branches",
+      "comment": "Branch office locations",
+      "fields": [
+        { "id": "f_b_id", "name": "id", "type": "BIGINT", "primary": true, "notNull": true },
+        { "id": "f_b_cid", "name": "company_id", "type": "BIGINT", "notNull": true },
+        { "id": "f_b_name", "name": "name", "type": "VARCHAR", "size": "255", "notNull": true },
+        { "id": "f_b_code", "name": "code", "type": "VARCHAR", "size": "50", "notNull": false, "unique": true }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel_company_branch",
+      "name": "fk_branch_company",
+      "startTableId": "t_company",
+      "endTableId": "t_branch",
+      "startFieldId": "f_c_id",
+      "endFieldId": "f_b_cid",
+      "cardinality": "OneToMany"
+    }
+  ]
+}

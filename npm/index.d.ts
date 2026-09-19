@@ -42,3 +42,14 @@ export declare class Migrator {
   create(name: string, content: string): CreateResult
   removePending(): RemoveResult
 }
+
+export declare function runOnDatabase(
+  client: any,
+  migrationsDir: string
+): Promise<RunResult>;
+
+export declare function statusOnDatabase(
+  client: any,
+  migrationsDir: string
+): Promise<StatusResult>;
+
