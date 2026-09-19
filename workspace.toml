@@ -1,0 +1,13 @@
+# Workspace members
+members = [
+    ".",
+    "npm",
+    "python",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Centra Team"]
+description = "SQL database migration library with Rust engine"
+license = "MIT"

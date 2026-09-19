@@ -1,0 +1,64 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Native binaries & compiled libraries (keep repository clean)
+*.dll
+*.so
+*.dylib
+*.pdb
+*.exp
+*.lib
+*.exe
+
+# Node.js & npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+npm/target/
+npm/*.node
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+wheels/
+*.egg-info/
+.pytest_cache/
+.venv/
+env/
+venv/
+ENV/
+
+# Go
+go/example/example.exe
+go/example/example
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Workspace & generated test outputs
+.kilo/
+scratch/
+generated_models/
+out_go/
+out_ts/
+out_py/
+out_cs/
+

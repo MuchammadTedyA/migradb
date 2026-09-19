@@ -1,0 +1,32 @@
+{
+  "name": "@centra/migradb",
+  "version": "0.1.0",
+  "description": "MigrDB - SQL database migration library with Rust engine",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "native/"
+  ],
+  "scripts": {
+    "build": "napi build --release",
+    "build:debug": "napi build"
+  },
+  "napi": {
+    "name": "migradb",
+    "triples": {
+      "defaults": true,
+      "additionals": [
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "i686-pc-windows-msvc",
+        "aarch64-pc-windows-msvc"
+      ]
+    }
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@napi-rs/cli": "^2.14.0"
+  }
+}
