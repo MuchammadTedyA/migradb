@@ -288,7 +288,7 @@ Safely removes the most recent migration file **only** if it has not yet been ap
 Generates strongly-typed entity model classes from a DrawDB JSON export file.
 - **Parameters**:
   - `schemaPath`: Path to the DrawDB JSON export file
-  - `targetLang`: Language target (`"go"`, `"node"`, `"python"`, or `"csharp"`)
+  - `targetLang`: Language target (`"go"`, `"node"`, or `"python"`)
   - `outputDir`: Target directory where generated files will be written
   - `pkgName`: Package name (for Go) or Namespace (for C#)
 - **Returns**: Result object containing `success`, file `count`, list of written `files`, and optional `error`.
