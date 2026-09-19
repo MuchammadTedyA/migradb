@@ -3,6 +3,7 @@ use migration_engine::{MigratorBuilder, InMemoryTracker, MigrationStatus as Core
 use std::sync::Arc;
 
 #[pyclass]
+#[derive(Clone, Debug)]
 struct Migration {
     #[pyo3(get)]
     version: String,
@@ -11,6 +12,7 @@ struct Migration {
 }
 
 #[pyclass]
+#[derive(Clone, Debug)]
 struct MigrationStatus {
     #[pyo3(get)]
     version: String,
@@ -23,6 +25,7 @@ struct MigrationStatus {
 }
 
 #[pyclass]
+#[derive(Clone, Debug)]
 struct RunResult {
     #[pyo3(get)]
     success: bool,
@@ -35,6 +38,7 @@ struct RunResult {
 }
 
 #[pyclass]
+#[derive(Clone, Debug)]
 struct StatusResult {
     #[pyo3(get)]
     success: bool,
@@ -45,6 +49,7 @@ struct StatusResult {
 }
 
 #[pyclass]
+#[derive(Clone, Debug)]
 struct CreateResult {
     #[pyo3(get)]
     success: bool,
@@ -55,6 +60,7 @@ struct CreateResult {
 }
 
 #[pyclass]
+#[derive(Clone, Debug)]
 struct RemoveResult {
     #[pyo3(get)]
     success: bool,
