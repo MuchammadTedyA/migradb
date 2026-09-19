@@ -13,6 +13,7 @@ from migration_engine_py import (
     CreateResult,
     RemoveResult,
 )
+from .runner import run_on_connection, status_on_connection
 
 __version__ = "0.1.0"
 __all__ = [
@@ -23,4 +24,6 @@ __all__ = [
     "StatusResult",
     "CreateResult",
     "RemoveResult",
+    "run_on_connection",
+    "status_on_connection",
 ]

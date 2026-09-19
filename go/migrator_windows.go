@@ -45,8 +45,8 @@ func findDLL() string {
 	candidates := []string{
 		"migration_engine.dll",
 		filepath.Join("..", "target", "release", "migration_engine.dll"),
+		filepath.Join("..", "target", "debug", "migration_engine.dll"),
 		filepath.Join("..", "..", "migradb", "target", "release", "migration_engine.dll"),
-		`C:\My Project\Centra\migradb\target\release\migration_engine.dll`,
 	}
 
 	for _, p := range candidates {

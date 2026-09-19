@@ -13,9 +13,9 @@ func TestGenerateModels(t *testing.T) {
 	}
 	defer m.Close()
 
-	schemaPath := filepath.Join("..", "..", "centra-api", "schema", "drawdb.json")
+	schemaPath := filepath.Join("..", "schema", "drawdb.json")
 	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
-		t.Skip("centra-api/schema/drawdb.json not found, skipping integration test")
+		t.Skip("schema/drawdb.json not found, skipping integration test")
 	}
 
 	tempDir, err := os.MkdirTemp("", "migradb-test-*")
@@ -68,7 +68,7 @@ func TestGenerateModels(t *testing.T) {
 
 	// 4. Test C# model generation
 	csOut := filepath.Join(tempDir, "csharp")
-	resCS, err := m.GenerateModels(schemaPath, "csharp", csOut, "Centra.Models")
+	resCS, err := m.GenerateModels(schemaPath, "csharp", csOut, "MigraDB.Models")
 	if err != nil {
 		t.Fatalf("GenerateModels(csharp) failed: %v", err)
 	}
@@ -76,4 +76,26 @@ func TestGenerateModels(t *testing.T) {
 		t.Fatalf("Expected generated C# files, got count %d", resCS.Count)
 	}
 	t.Logf("Generated %d C# model files", resCS.Count)
+
+	// 5. Test Rust model generation
+	rustOut := filepath.Join(tempDir, "rust")
+	resRust, err := m.GenerateModels(schemaPath, "rust", rustOut, "")
+	if err != nil {
+		t.Fatalf("GenerateModels(rust) failed: %v", err)
+	}
+	if !resRust.Success || resRust.Count == 0 {
+		t.Fatalf("Expected generated Rust files, got count %d", resRust.Count)
+	}
+	t.Logf("Generated %d Rust model files", resRust.Count)
+
+	// 6. Test SQL DDL generation
+	sqlOut := filepath.Join(tempDir, "sql")
+	resSQL, err := m.GenerateModels(schemaPath, "sql", sqlOut, "postgres")
+	if err != nil {
+		t.Fatalf("GenerateModels(sql) failed: %v", err)
+	}
+	if !resSQL.Success || resSQL.Count == 0 {
+		t.Fatalf("Expected generated SQL files, got count %d", resSQL.Count)
+	}
+	t.Logf("Generated %d SQL files", resSQL.Count)
 }

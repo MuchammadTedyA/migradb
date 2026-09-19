@@ -8,6 +8,6 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Centra Team"]
+authors = ["Muchammad Tedy"]
 description = "SQL database migration library with Rust engine"
 license = "MIT"

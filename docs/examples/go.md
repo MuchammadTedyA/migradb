@@ -20,7 +20,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -62,7 +62,7 @@ package main
 import (
     "net/http"
 
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
     "github.com/gin-gonic/gin"
 )
 
@@ -107,7 +107,7 @@ func main() {
 package main
 
 import (
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
     "github.com/gofiber/fiber/v2"
 )
 
@@ -150,7 +150,7 @@ import (
     "fmt"
     "os"
 
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -269,7 +269,7 @@ import (
     "log"
     "sync"
 
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 type DatabaseMigrator struct {
@@ -324,7 +324,7 @@ import (
     "fmt"
     "strings"
 
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 type TableColumn struct {
@@ -420,7 +420,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {

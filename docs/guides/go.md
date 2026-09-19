@@ -38,7 +38,7 @@ In your project's `go.mod`:
 
 ```bash
 # Link local development copy
-go mod edit -replace github.com/centra/migration=../migradb/go
+go mod edit -replace github.com/MuchammadTedyA/migradb/go=../migradb/go
 go mod tidy
 ```
 
@@ -62,7 +62,7 @@ package main
 import (
     "fmt"
     "log"
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -319,7 +319,7 @@ package main
 import (
     "fmt"
     "log"
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -386,7 +386,7 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 var migrator *migration.Migrator
@@ -435,7 +435,7 @@ package main
 
 import (
     "github.com/gofiber/fiber/v2"
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
@@ -468,7 +468,7 @@ package main
 import (
     "context"
     "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/centra/migration"
+    "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {

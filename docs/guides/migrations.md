@@ -296,7 +296,7 @@ The library automatically wraps each migration in a transaction. Ensure your SQL
 
 ### 7. Follow Naming Conventions
 
-Use the Centra table prefix conventions:
+Use standard SQL table prefix conventions:
 
 | Prefix | Purpose | Example |
 |--------|---------|---------|
@@ -346,5 +346,5 @@ fmt.Printf("Generated %d model files in ./internal/models\n", res.Count)
 
 4. **C# / .NET (`"csharp"`)**:
    - Generates partial entity classes with EF Core data annotations (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`).
-   - Generates a ready-to-register `CentraDbContext` class with all `DbSet<T>` properties configured.
+   - Generates a ready-to-register `MigraDbContext` class with all `DbSet<T>` properties configured.
 

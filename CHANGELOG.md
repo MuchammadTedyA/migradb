@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Standalone CLI tool (`migradb`)** with subcommands for `init`, `create`, `status`, and `generate`.
+- **Rust model generator (`TargetLanguage::Rust`)** creating serde-compatible models and `sqlx::FromRow` derivations.
+- **SQL DDL generator (`TargetLanguage::Sql`)** creating schema tables, constraints, and foreign keys for PostgreSQL, MySQL, and SQLite.
+- **Direct Database Execution Helpers**:
+  - Go: `RunDB` and `StatusDB` for transaction-safe migrations using Go standard library `database/sql`.
+  - Node.js: `runOnDatabase` and `statusOnDatabase` supporting `pg`, `mysql2`, and `better-sqlite3`.
+  - Python: `run_on_connection` and `status_on_connection` supporting standard Python DB-API 2.0 connections.
+
 ## [0.1.0] - 2026-09-12
 
 ### Added
@@ -17,11 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Go struct models with `json` and `db` tags, nullable pointers, and navigation properties
   - Node.js / TypeScript interfaces and classes with `Date`, `number`, and barrel `index.ts`
   - Python SQLAlchemy 2.0 declarative models (`Mapped[...]`, `mapped_column`, `relationship()`)
-  - C# EF Core entity classes (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`) & `CentraDbContext`
+  - C# EF Core entity classes (`[Table]`, `[Key]`, `[ForeignKey]`, `[InverseProperty]`) & `MigraDbContext`
   - DrawDB JSON schema parser with automatic 1-to-many relationship mapping
   - Automatic table prefix stripping (`m_`, `t_`, `sys_`, `map_`) and table name singularization
-- Go bindings (`github.com/centra/migration`) via dynamic loading (Windows) and CGO (Linux/macOS) with fallback stubs
-- Node.js bindings (`@centra/migradb`) via napi-rs
+- Go bindings (`github.com/MuchammadTedyA/migradb/go`) via dynamic loading (Windows) and CGO (Linux/macOS) with fallback stubs
+- Node.js bindings (`migradb`) via napi-rs
 - Python bindings (`migradb`) via PyO3
 - Timestamp-based versioning (`YYYYMMDDHHmmss_slug.sql`)
 - Immutable migration history and roll-forward architecture
@@ -45,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic resource cleanup
 
 ### Node.js Package
-- `@centra/migradb` npm package
+- `migradb` npm package
 - TypeScript definitions included (`index.d.ts`)
 - Pre-built binaries for major platforms
 - Express, Fastify, NestJS integration examples
@@ -56,5 +65,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flask, FastAPI, Django integration examples
 - Async support via `asyncio.to_thread`
 
-[Unreleased]: https://github.com/centra/migradb/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/centra/migradb/releases/tag/v0.1.0
+[Unreleased]: https://github.com/MuchammadTedyA/migradb/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/MuchammadTedyA/migradb/releases/tag/v0.1.0

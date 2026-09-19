@@ -1,4 +1,4 @@
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('../migrations');
 

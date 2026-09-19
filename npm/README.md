@@ -1,17 +1,17 @@
-# @centra/migradb
+# migradb
 
 A high-performance SQL database migration library with a Rust core engine, providing Node.js bindings via napi-rs.
 
 ## Installation
 
 ```bash
-npm install @centra/migradb
+npm install migradb
 ```
 
 ## Quick Start
 
 ```javascript
-const { Migrator } = require('@centra/migradb');
+const { Migrator } = require('migradb');
 
 const m = new Migrator('./migrations');
 
@@ -35,7 +35,7 @@ if (result.success) {
 ## TypeScript Usage
 
 ```typescript
-import { Migrator, RunResult, StatusResult } from '@centra/migradb';
+import { Migrator, RunResult, StatusResult } from 'migradb';
 
 const m = new Migrator('./migrations');
 const result: RunResult = m.run();
@@ -50,4 +50,3 @@ const result: RunResult = m.run();
 ## License
 
 MIT
-

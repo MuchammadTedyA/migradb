@@ -4,7 +4,9 @@ pub mod golang;
 pub mod naming;
 pub mod node_ts;
 pub mod python;
+pub mod rust_models;
 pub mod schema;
+pub mod sql;
 
 use crate::error::{MigrationError, Result};
 use std::fs;
@@ -16,6 +18,8 @@ pub enum TargetLanguage {
     Node,
     Python,
     CSharp,
+    Rust,
+    Sql,
 }
 
 impl TargetLanguage {
@@ -25,8 +29,10 @@ impl TargetLanguage {
             "node" | "nodejs" | "ts" | "typescript" | "js" | "javascript" => Ok(Self::Node),
             "python" | "py" => Ok(Self::Python),
             "csharp" | "cs" | "dotnet" | "efcore" => Ok(Self::CSharp),
+            "rust" | "rs" => Ok(Self::Rust),
+            "sql" | "ddl" => Ok(Self::Sql),
             other => Err(MigrationError::Codegen(format!(
-                "Unsupported target language `{}`. Supported: go, node, python, csharp",
+                "Unsupported target language `{}`. Supported: go, node, python, csharp, rust, sql",
                 other
             ))),
         }
@@ -54,8 +60,13 @@ pub fn generate_models<P: AsRef<Path>, Q: AsRef<Path>>(
         TargetLanguage::Node => node_ts::generate_node_ts_models(&schema),
         TargetLanguage::Python => python::generate_python_models(&schema),
         TargetLanguage::CSharp => {
-            let ns = pkg_or_namespace.unwrap_or("Centra.Models");
+            let ns = pkg_or_namespace.unwrap_or("MigraDB.Models");
             csharp::generate_csharp_models(&schema, ns)
+        }
+        TargetLanguage::Rust => rust_models::generate_rust_models(&schema),
+        TargetLanguage::Sql => {
+            let dialect = pkg_or_namespace.unwrap_or("postgres");
+            sql::generate_sql_ddl(&schema, dialect)
         }
     };
 
@@ -159,11 +170,46 @@ mod tests {
         fs::write(&schema_file, SAMPLE_DRAWDB).unwrap();
 
         let out_dir = dir.path().join("out_cs");
-        let result = generate_models(&schema_file, TargetLanguage::CSharp, &out_dir, Some("Centra.Models"));
+        let result = generate_models(&schema_file, TargetLanguage::CSharp, &out_dir, Some("MigraDB.Models"));
         assert!(result.is_ok());
         let cs_content = fs::read_to_string(out_dir.join("Branch.cs")).unwrap();
         assert!(cs_content.contains("public partial class Branch"));
         assert!(cs_content.contains("public virtual Company? Company { get; set; }"));
+    }
+
+    #[test]
+    fn test_generate_rust() {
+        let dir = tempdir().unwrap();
+        let schema_file = dir.path().join("schema.json");
+        fs::write(&schema_file, SAMPLE_DRAWDB).unwrap();
+
+        let out_dir = dir.path().join("out_rs");
+        let result = generate_models(&schema_file, TargetLanguage::Rust, &out_dir, None);
+        assert!(result.is_ok());
+        let branch_content = fs::read_to_string(out_dir.join("branch.rs")).unwrap();
+        assert!(branch_content.contains("pub struct Branch"));
+        assert!(branch_content.contains("pub name: String"));
+        assert!(branch_content.contains("pub company_id: uuid::Uuid"));
+
+        let mod_content = fs::read_to_string(out_dir.join("mod.rs")).unwrap();
+        assert!(mod_content.contains("pub mod branch;"));
+        assert!(mod_content.contains("pub use branch::Branch;"));
+    }
+
+    #[test]
+    fn test_generate_sql() {
+        let dir = tempdir().unwrap();
+        let schema_file = dir.path().join("schema.json");
+        fs::write(&schema_file, SAMPLE_DRAWDB).unwrap();
+
+        let out_dir = dir.path().join("out_sql");
+        let result = generate_models(&schema_file, TargetLanguage::Sql, &out_dir, Some("postgres"));
+        assert!(result.is_ok());
+        let sql_content = fs::read_to_string(out_dir.join("schema.postgres.sql")).unwrap();
+        assert!(sql_content.contains("CREATE TABLE IF NOT EXISTS m_companies"));
+        assert!(sql_content.contains("CREATE TABLE IF NOT EXISTS m_branches"));
+        assert!(sql_content.contains("PRIMARY KEY"));
+        assert!(sql_content.contains("FOREIGN KEY"));
     }
 }
 
