@@ -35,21 +35,17 @@ export interface RemoveResult {
   message?: string
   error?: string
 }
+export interface GenerateResult {
+  success: boolean
+  files: Array<string>
+  error?: string
+}
+export declare function generateModels(schemaPath: string, targetLang: string, outputDir: string, pkgOrNamespace?: string | undefined | null): GenerateResult
 export declare class Migrator {
   constructor(migrationsDir: string)
+  generateModels(schemaPath: string, targetLang: string, outputDir: string, pkgOrNamespace?: string | undefined | null): GenerateResult
   run(): RunResult
   status(): StatusResult
   create(name: string, content: string): CreateResult
   removePending(): RemoveResult
 }
-
-export declare function runOnDatabase(
-  client: any,
-  migrationsDir: string
-): Promise<RunResult>;
-
-export declare function statusOnDatabase(
-  client: any,
-  migrationsDir: string
-): Promise<StatusResult>;
-

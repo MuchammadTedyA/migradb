@@ -46,6 +46,53 @@ pub struct RemoveResult {
     pub error: Option<String>,
 }
 
+#[napi(object)]
+pub struct GenerateResult {
+    pub success: bool,
+    pub files: Vec<String>,
+    pub error: Option<String>,
+}
+
+#[napi]
+pub fn generate_models(
+    schema_path: String,
+    target_lang: String,
+    output_dir: String,
+    pkg_or_namespace: Option<String>,
+) -> GenerateResult {
+    let lang = match migration_engine::codegen::TargetLanguage::parse(&target_lang) {
+        Ok(l) => l,
+        Err(e) => {
+            return GenerateResult {
+                success: false,
+                files: vec![],
+                error: Some(e.to_string()),
+            };
+        }
+    };
+
+    match migration_engine::codegen::generate_models(
+        &schema_path,
+        lang,
+        &output_dir,
+        pkg_or_namespace.as_deref(),
+    ) {
+        Ok(paths) => GenerateResult {
+            success: true,
+            files: paths
+                .into_iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect(),
+            error: None,
+        },
+        Err(e) => GenerateResult {
+            success: false,
+            files: vec![],
+            error: Some(e.to_string()),
+        },
+    }
+}
+
 #[napi]
 pub struct Migrator {
     inner: migration_engine::Migrator,
@@ -61,6 +108,17 @@ impl Migrator {
             .build(tracker);
 
         Self { inner: migrator }
+    }
+
+    #[napi]
+    pub fn generate_models(
+        &self,
+        schema_path: String,
+        target_lang: String,
+        output_dir: String,
+        pkg_or_namespace: Option<String>,
+    ) -> GenerateResult {
+        generate_models(schema_path, target_lang, output_dir, pkg_or_namespace)
     }
 
     #[napi]

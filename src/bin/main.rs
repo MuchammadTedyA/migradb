@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[derive(Parser)]
 #[command(name = "migradb")]
 #[command(author = "Muchammad Tedy")]
-#[command(version = "0.1.0")]
+#[command(version = "0.1.1")]
 #[command(about = "High-performance SQL database migration and model generation engine", long_about = None)]
 struct Cli {
     #[command(subcommand)]

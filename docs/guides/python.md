@@ -34,19 +34,52 @@ pipenv install migradb
 
 ## Quick Start
 
+### 1. Running Migrations on a Real Database (Recommended)
+
+MigraDB works with any standard Python DB-API 2.0 connection (`sqlite3`, `psycopg2`, `pymysql`):
+
+```python
+import psycopg2
+from migradb import run_on_connection, status_on_connection
+
+conn = psycopg2.connect("dbname=mydb user=postgres password=secret host=localhost")
+
+# Check migration status
+status = status_on_connection(conn, "./migrations")
+print("Status:", status["migrations"])
+
+# Run pending migrations in transactions
+result = run_on_connection(conn, "./migrations")
+if result["success"]:
+    print(f"Applied {result['applied']} migrations!")
+else:
+    print(f"Error: {result['error']}")
+
+conn.close()
+```
+
+### 2. Generating Migrations & Models from DrawDB (`drawdb.json`)
+
+```python
+from migradb import generate_models
+
+# Generate PostgreSQL migration files from DrawDB:
+generate_models("schema/drawdb.json", "sql", "./migrations", "postgres")
+
+# Generate Python dataclass models from the same diagram:
+generate_models("schema/drawdb.json", "python", "./models")
+```
+
+### 3. In-Memory Native Core Engine (`Migrator`)
+
+For validating migration files and timestamps using the native Rust engine:
+
 ```python
 from migradb import Migrator
 
-# Create migrator instance
 m = Migrator("./migrations")
-
-# Run all pending migrations
+status = m.status()
 result = m.run()
-
-if result.success:
-    print(f"Applied {result.applied} migrations")
-else:
-    print(result.error)
 ```
 
 ## API Reference
@@ -212,6 +245,56 @@ if result.removed:
     print(f"Removed: {result.removed}")
 ```
 
+#### `generate_models(schema_path: str, target_lang: str, output_dir: str, pkg_or_namespace: Optional[str] = None) -> GenerateResult`
+
+Generates strongly typed models or SQL DDL from a DrawDB diagram export file. Available both as a standalone function `from migradb import generate_models` and as a `Migrator` method `m.generate_models(...)`.
+
+**Parameters:**
+- `schema_path` - Path to the DrawDB JSON export file
+- `target_lang` - Target language (`"python"`, `"py"`, `"node"`, `"go"`, `"rust"`, `"csharp"`, `"sql"`)
+- `output_dir` - Destination file path (e.g. `"./models.py"`) or directory
+- `pkg_or_namespace` - Optional package or namespace name
+
+**Example:**
+```python
+from migradb import generate_models
+
+res = generate_models("schema/drawdb.json", "python", "./app/models.py")
+print("Generated files:", res.files)
+```
+
+#### `run_on_connection(conn: Any, migrations_dir: str) -> ResultDict`
+
+Executes all pending migrations directly against any standard Python DB-API 2.0 database connection (`sqlite3`, `psycopg2`, `pymysql`) within atomic transactions. Automatically creates and updates the `schema_migrations` tracking table.
+
+**Example:**
+```python
+import psycopg2
+from migradb import run_on_connection
+
+conn = psycopg2.connect("dbname=myapp user=postgres password=secret host=localhost")
+result = run_on_connection(conn, "./migrations")
+if result.success:
+    print(f"Applied {result.applied} migrations")
+conn.close()
+```
+
+#### `status_on_connection(conn: Any, migrations_dir: str) -> ResultDict`
+
+Inspects migration status directly against a live database connection by checking the `schema_migrations` audit table.
+
+**Example:**
+```python
+import psycopg2
+from migradb import status_on_connection
+
+conn = psycopg2.connect("dbname=myapp user=postgres password=secret host=localhost")
+status = status_on_connection(conn, "./migrations")
+for s in status.migrations:
+    print(f"[{'APPLIED' if s.applied else 'PENDING'}] {s.version} - {s.name}")
+conn.close()
+```
+
 ## Examples
 
 ### Basic Migration Workflow
@@ -311,94 +394,166 @@ if __name__ == "__main__":
 
 ## Integration with Frameworks
 
-### Flask
+### Flask (Startup Auto-Migration)
 
 ```python
-from flask import Flask, jsonify
-from migradb import Migrator
+import os
+import psycopg2
+from flask import Flask, jsonify, request
+from migradb import run_on_connection, status_on_connection, Migrator
 
 app = Flask(__name__)
-m = Migrator("./migrations")
+DB_URI = os.getenv("DATABASE_URL", "dbname=myapp user=postgres password=secret host=localhost")
+migrator = Migrator("./migrations")
 
-# Run migrations on startup
+# Run migrations automatically on server startup
 with app.app_context():
-    result = m.run()
-    if result.success:
-        print(f"Applied {result.applied} migrations")
-    else:
-        print(f"Migration failed: {result.error}")
+    conn = psycopg2.connect(DB_URI)
+    try:
+        result = run_on_connection(conn, "./migrations")
+        if not result.success:
+            raise RuntimeError(f"Startup migration failed: {result.error}")
+        print(f"Applied {result.applied} startup migrations")
+    finally:
+        conn.close()
 
 @app.route("/api/migrations/status")
 def migration_status():
-    return jsonify(m.status().__dict__)
+    conn = psycopg2.connect(DB_URI)
+    try:
+        status = status_on_connection(conn, "./migrations")
+        return jsonify({
+            "success": status.success,
+            "migrations": [
+                {"version": m.version, "name": m.name, "applied": m.applied}
+                for m in status.migrations
+            ]
+        })
+    finally:
+        conn.close()
 
 @app.route("/api/migrations/run", methods=["POST"])
 def migration_run():
-    return jsonify(m.run().__dict__)
+    conn = psycopg2.connect(DB_URI)
+    try:
+        result = run_on_connection(conn, "./migrations")
+        return jsonify({
+            "success": result.success,
+            "applied": result.applied,
+            "error": result.error
+        })
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
 ```
 
-### FastAPI
+### FastAPI (Modern Lifespan Context Manager)
 
 ```python
+from contextlib import asynccontextmanager
+import asyncio
+import psycopg2
 from fastapi import FastAPI, HTTPException
-from migradb import Migrator, StatusResult, RunResult
+from pydantic import BaseModel
+from migradb import run_on_connection, status_on_connection, Migrator
 
-app = FastAPI()
-m = Migrator("./migrations")
+DB_CONFIG = {
+    "dbname": "myapp",
+    "user": "postgres",
+    "password": "secretpassword",
+    "host": "localhost",
+    "port": 5432,
+}
 
-@app.on_event("startup")
-async def startup_event():
-    result = m.run()
-    if not result.success:
-        raise RuntimeError(result.error)
-    print(f"Applied {result.applied} migrations")
+migrator = Migrator("./migrations")
 
-@app.get("/migrations/status", response_model=dict)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Run migrations during server startup
+    def _migrate():
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            res = run_on_connection(conn, "./migrations")
+            if not res.success:
+                raise RuntimeError(f"Migration failed: {res.error}")
+            print(f"Migrations applied on startup: {res.applied}")
+        finally:
+            conn.close()
+
+    await asyncio.to_thread(_migrate)
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/migrations/status")
 async def get_status():
-    return m.status().__dict__
+    def _status():
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            return status_on_connection(conn, "./migrations")
+        finally:
+            conn.close()
 
-@app.post("/migrations/run", response_model=dict)
+    return await asyncio.to_thread(_status)
+
+@app.post("/migrations/run")
 async def run_migrations():
-    return m.run().__dict__
+    def _run():
+        conn = psycopg2.connect(**DB_CONFIG)
+        try:
+            return run_on_connection(conn, "./migrations")
+        finally:
+            conn.close()
+
+    return await asyncio.to_thread(_run)
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-### Django
+### Django Management Command
 
 ```python
-# management/commands/migrate_custom.py
+# myapp/management/commands/migrate_sql.py
+import psycopg2
+from django.conf import settings
 from django.core.management.base import BaseCommand
-from migradb import Migrator
+from migradb import run_on_connection, status_on_connection
 
 class Command(BaseCommand):
-    help = 'Run custom migrations'
+    help = "Run MigraDB SQL migrations"
 
     def add_arguments(self, parser):
-        parser.add_argument('--dir', default='./migrations')
-        parser.add_argument('--status', action='store_true')
+        parser.add_argument("--dir", default="./migrations")
+        parser.add_argument("--status", action="store_true")
 
     def handle(self, *args, **options):
-        m = Migrator(options['dir'])
+        db_conf = settings.DATABASES["default"]
+        conn = psycopg2.connect(
+            dbname=db_conf["NAME"],
+            user=db_conf["USER"],
+            password=db_conf["PASSWORD"],
+            host=db_conf["HOST"],
+            port=db_conf["PORT"],
+        )
 
-        if options['status']:
-            status = m.status()
-            for s in status.migrations:
-                status_str = 'APPLIED' if s.applied else 'PENDING'
-                self.stdout.write(f'[{status_str}] {s.version} - {s.name}')
-        else:
-            result = m.run()
-            if result.success:
-                self.stdout.write(self.style.SUCCESS(
-                    f'Applied {result.applied} migrations'
-                ))
+        try:
+            if options["status"]:
+                status = status_on_connection(conn, options["dir"])
+                for s in status.migrations:
+                    status_str = "APPLIED" if s.applied else "PENDING"
+                    self.stdout.write(f"[{status_str}] {s.version} - {s.name}")
             else:
-                self.stderr.write(self.style.ERROR(result.error))
+                result = run_on_connection(conn, options["dir"])
+                if result.success:
+                    self.stdout.write(self.style.SUCCESS(f"Applied {result.applied} migrations"))
+                else:
+                    self.stderr.write(self.style.ERROR(result.error))
+        finally:
+            conn.close()
 ```
 
 ### SQLAlchemy Integration

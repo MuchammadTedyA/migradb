@@ -73,6 +73,58 @@ struct RemoveResult {
 }
 
 #[pyclass]
+#[derive(Clone, Debug)]
+struct GenerateResult {
+    #[pyo3(get)]
+    success: bool,
+    #[pyo3(get)]
+    files: Vec<String>,
+    #[pyo3(get)]
+    error: Option<String>,
+}
+
+#[pyfunction]
+#[pyo3(signature = (schema_path, target_lang, output_dir, pkg_or_namespace=None))]
+fn generate_models(
+    schema_path: &str,
+    target_lang: &str,
+    output_dir: &str,
+    pkg_or_namespace: Option<&str>,
+) -> GenerateResult {
+    let lang = match migration_engine::codegen::TargetLanguage::parse(target_lang) {
+        Ok(l) => l,
+        Err(e) => {
+            return GenerateResult {
+                success: false,
+                files: vec![],
+                error: Some(e.to_string()),
+            };
+        }
+    };
+
+    match migration_engine::codegen::generate_models(
+        schema_path,
+        lang,
+        output_dir,
+        pkg_or_namespace,
+    ) {
+        Ok(paths) => GenerateResult {
+            success: true,
+            files: paths
+                .into_iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect(),
+            error: None,
+        },
+        Err(e) => GenerateResult {
+            success: false,
+            files: vec![],
+            error: Some(e.to_string()),
+        },
+    }
+}
+
+#[pyclass]
 struct Migrator {
     inner: migration_engine::Migrator,
 }
@@ -87,6 +139,17 @@ impl Migrator {
             .build(tracker);
 
         Self { inner: migrator }
+    }
+
+    #[pyo3(signature = (schema_path, target_lang, output_dir, pkg_or_namespace=None))]
+    fn generate_models(
+        &self,
+        schema_path: &str,
+        target_lang: &str,
+        output_dir: &str,
+        pkg_or_namespace: Option<&str>,
+    ) -> GenerateResult {
+        generate_models(schema_path, target_lang, output_dir, pkg_or_namespace)
     }
 
     fn run(&self) -> RunResult {
@@ -183,5 +246,7 @@ fn migration_engine_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StatusResult>()?;
     m.add_class::<CreateResult>()?;
     m.add_class::<RemoveResult>()?;
+    m.add_class::<GenerateResult>()?;
+    m.add_function(wrap_pyfunction!(generate_models, m)?)?;
     Ok(())
 }

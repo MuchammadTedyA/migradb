@@ -5,16 +5,64 @@ Complete API reference for the MigrDB Node.js module.
 ## Module: `migradb`
 
 ```javascript
-const { Migrator } = require('migradb');
+const { Migrator, runOnDatabase, statusOnDatabase, generateModels } = require('migradb');
 // or
-import { Migrator } from 'migradb';
+import { Migrator, runOnDatabase, statusOnDatabase, generateModels } from 'migradb';
 ```
+
+## Functions
+
+### `runOnDatabase(client, migrationsDir)`
+
+Executes all pending migrations directly against a live database client within an atomic transaction.
+
+```typescript
+function runOnDatabase(client: any, migrationsDir: string): Promise<RunResult>;
+```
+
+- **Supported Clients**:
+  - PostgreSQL: `pg.Client` or `pg.Pool`
+  - MySQL: `mysql2/promise` Connection or Pool
+  - SQLite: `better-sqlite3` Database instance
+- **Returns**: `Promise<RunResult>` containing `success`, `applied` count, `migrations`, and optional `error`.
+
+### `statusOnDatabase(client, migrationsDir)`
+
+Checks migration status directly against a live database client.
+
+```typescript
+function statusOnDatabase(client: any, migrationsDir: string): Promise<StatusResult>;
+```
+
+- **Returns**: `Promise<StatusResult>` containing `success` and list of `MigrationStatus`.
+
+### `generateModels(schemaPath, targetLang, outputDir, pkgOrNamespace?)`
+
+Standalone function to generate strongly typed models from a DrawDB diagram export file.
+
+```typescript
+function generateModels(
+    schemaPath: string,
+    targetLang: string,
+    outputDir: string,
+    pkgOrNamespace?: string | null
+): GenerateResult;
+```
+
+- **Parameters**:
+  - `schemaPath`: Path to the DrawDB JSON export file
+  - `targetLang`: Target language (`"node"`, `"ts"`, `"go"`, `"python"`, `"rust"`, `"csharp"`, `"sql"`)
+  - `outputDir`: Destination directory for generated files
+  - `pkgOrNamespace` (optional): Package name or namespace
+- **Returns**: `GenerateResult` containing `success`, list of `files`, and optional `error`.
+
+---
 
 ## Classes
 
 ### `Migrator`
 
-The main class for managing database migrations.
+The main class for managing database migration files and tracking.
 
 ```typescript
 class Migrator {
@@ -23,6 +71,7 @@ class Migrator {
     status(): StatusResult;
     create(name: string, content: string): CreateResult;
     removePending(): RemoveResult;
+    generateModels(schemaPath: string, targetLang: string, outputDir: string, pkgOrNamespace?: string | null): GenerateResult;
 }
 ```
 
@@ -31,10 +80,11 @@ class Migrator {
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | constructor | `new Migrator(migrationsDir: string)` | Creates instance with migrations directory |
-| run | `run(): RunResult` | Applies all pending migrations |
+| run | `run(): RunResult` | Applies all pending migrations against internal tracker |
 | status | `status(): StatusResult` | Returns migration status |
 | create | `create(name: string, content: string): CreateResult` | Creates a new migration file |
 | removePending | `removePending(): RemoveResult` | Removes last pending migration |
+| generateModels | `generateModels(schemaPath: string, targetLang: string, outputDir: string, pkgOrNamespace?: string \| null): GenerateResult` | Generates models from DrawDB JSON diagram |
 
 ---
 
@@ -174,6 +224,28 @@ interface RemoveResult {
 | message | `string | undefined` | Informational message |
 | error | `string | undefined` | Error message if failed |
 
+---
+
+### `GenerateResult`
+
+Result from generating models from DrawDB schema.
+
+```typescript
+interface GenerateResult {
+    success: boolean;
+    files: string[];
+    error?: string;
+}
+```
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| success | `boolean` | Whether code generation succeeded |
+| files | `string[]` | List of relative file paths created |
+| error | `string | undefined` | Error message if failed |
+
 ## Usage Examples
 
 ### Constructor
@@ -241,6 +313,49 @@ if (result.success) {
 }
 ```
 
+### Direct Database Migration (`runOnDatabase`)
+
+Execute migrations against real database connections within a transaction:
+
+```javascript
+const { Client } = require('pg');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
+
+async function migrate() {
+    const client = new Client({ connectionString: 'postgresql://postgres:secret@localhost:5432/myapp' });
+    await client.connect();
+
+    const result = await runOnDatabase(client, './migrations');
+    if (result.success) {
+        console.log(`Applied ${result.applied} migrations!`);
+    } else {
+        console.error('Migration failed:', result.error);
+    }
+
+    const status = await statusOnDatabase(client, './migrations');
+    console.log(`Total migrations: ${status.migrations.length}`);
+
+    await client.end();
+}
+
+migrate();
+```
+
+### Model Generation (`generateModels`)
+
+Generate TypeScript domain models and interfaces from DrawDB diagram export:
+
+```javascript
+const { generateModels } = require('migradb');
+
+const result = generateModels('schema/drawdb.json', 'node', './src/models');
+if (result.success) {
+    console.log(`Generated ${result.files.length} model files:`, result.files);
+} else {
+    console.error('Generation failed:', result.error);
+}
+```
+
 ## Error Handling
 
 All methods return result objects with a `success` boolean. Check this first before accessing other properties.
@@ -270,7 +385,11 @@ import {
     RunResult,
     StatusResult,
     CreateResult,
-    RemoveResult
+    RemoveResult,
+    GenerateResult,
+    runOnDatabase,
+    statusOnDatabase,
+    generateModels
 } from 'migradb';
 ```
 

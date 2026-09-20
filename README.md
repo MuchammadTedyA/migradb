@@ -1,6 +1,6 @@
 # MigrDB
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A high-performance SQL database migration and schema modeling library built with a Rust core engine, providing native bindings for Go, Node.js (npm), and Python, alongside ecosystem-aware model generation for Go, TypeScript, Python (SQLAlchemy 2.0), and C# (EF Core).
@@ -75,52 +75,56 @@ A high-performance SQL database migration and schema modeling library built with
 
 ### Go
 
-The Go package supports **Zero-CGO dynamic loading on Windows** and **standard CGO on Linux/macOS**.
-
 ```bash
-# 1. Build the Rust core engine
-cargo build --release
-
-# 2. Linux / macOS only: export library path (Windows locates DLL automatically)
-export LD_LIBRARY_PATH=$PWD/target/release:$LD_LIBRARY_PATH
+go get github.com/MuchammadTedyA/migradb/go
 ```
+
+The Go package supports **Zero-CGO dynamic loading on Windows** (loads `migration_engine.dll` without MinGW/GCC) and **standard CGO on Linux/macOS**.
+
+#### Run Migrations Directly on Your Database (`RunDB`)
+Works with any standard Go SQL driver (PostgreSQL via `lib/pq` or `pgx/stdlib`, MySQL via `go-sql-driver/mysql`, SQLite via `go-sqlite3`):
 
 ```go
 package main
 
 import (
+    "context"
+    "database/sql"
     "fmt"
     "log"
 
+    _ "github.com/lib/pq"
     migration "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
-    // Initialize migrator with migrations directory
-    m := migration.NewMigrator("./migrations")
-    if m == nil {
-        log.Fatal("Failed to initialize migrator")
-    }
-    defer m.Close()
+    ctx := context.Background()
 
-    // Run all pending migrations
-    result, err := m.Run()
+    // 1. Connect to database
+    db, err := sql.Open("postgres", "postgres://postgres:secret@localhost:5432/myapp?sslmode=disable")
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Printf("Applied %d migrations\n", result.Applied)
+    defer db.Close()
 
-    // Generate Go model classes from a DrawDB visual schema export
-    modelResult, err := m.GenerateModels(
-        "schema/drawdb.json", // DrawDB JSON file
-        "go",                 // Target language: go, node, or python
-        "./internal/models",  // Target directory
-        "models",             // Package or namespace name
-    )
+    // 2. Check migration status
+    status, err := migration.StatusDB(ctx, db, "./migrations")
     if err != nil {
-        log.Fatalf("Model generation failed: %v", err)
+        log.Fatal(err)
     }
-    fmt.Printf("Generated %d model files in ./internal/models\n", modelResult.Count)
+    fmt.Printf("Total migrations tracked: %d\n", len(status.Migrations))
+
+    // 3. Apply all pending migrations in atomic transactions
+    result, err := migration.RunDB(ctx, db, "./migrations")
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Successfully applied %d migration(s)!\n", result.Applied)
+
+    // 4. Generate Go model structs from DrawDB visual schema export
+    m := migration.NewMigrator("./migrations")
+    defer m.Close()
+    m.GenerateModels("schema/drawdb.json", "go", "./internal/models", "models")
 }
 ```
 
@@ -130,27 +134,40 @@ func main() {
 npm install migradb
 ```
 
+#### Run Migrations Directly on Your Database
+`migradb` includes built-in live database runners for `pg` (PostgreSQL), `mysql2` (MySQL), and `better-sqlite3` (SQLite):
+
 ```javascript
-const { Migrator } = require('migradb');
+const { Client } = require('pg');
+const { runOnDatabase, statusOnDatabase, generateModels } = require('migradb');
 
-const m = new Migrator('./migrations');
+async function main() {
+    const client = new Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
 
-// Check status
-const status = m.status();
-if (status.success) {
-    status.migrations.forEach(s => {
-        console.log(`[${s.applied ? 'APPLIED' : 'PENDING'}] ${s.version} - ${s.name}`);
-    });
+    // Run all pending migrations inside a transaction
+    const result = await runOnDatabase(client, './migrations');
+    console.log(`Applied ${result.applied} migrations!`);
+
+    // Check status anytime
+    const status = await statusOnDatabase(client, './migrations');
+    console.log(`Total migrations tracked: ${status.migrations.length}`);
+
+    await client.end();
+
+    // Generate TypeScript interfaces and models from DrawDB JSON diagram
+    generateModels('schema/drawdb.json', 'node', './src/models');
 }
 
-// Run pending migrations
-const result = m.run();
-if (result.success) {
-    console.log(`Applied ${result.applied} migrations`);
-} else {
-    console.error(`Migration failed: ${result.error}`);
-}
+main().catch(console.error);
 ```
+
+> **CLI Shortcut**: You can also use the bundled CLI directly with `npx migradb`:
+> ```bash
+> npx migradb init --dir ./migrations
+> npx migradb create add_users --dir ./migrations
+> npx migradb generate --schema drawdb.json --lang node --out ./src/models
+> ```
 
 ### Python
 
@@ -158,24 +175,32 @@ if (result.success) {
 pip install migradb
 ```
 
+#### Run Migrations Directly on Your Database
+`migradb` supports standard Python DB-API 2.0 connections (`psycopg2`, `sqlite3`, `pymysql`):
+
 ```python
-from migradb import Migrator
+import psycopg2
+from migradb import run_on_connection, status_on_connection, generate_models
 
-m = Migrator("./migrations")
+# Connect to database
+conn = psycopg2.connect("dbname=myapp user=postgres password=secret host=localhost")
 
-# Check status
-status = m.status()
-if status.success:
-    for s in status.migrations:
-        status_label = "APPLIED" if s.applied else "PENDING"
-        print(f"[{status_label}] {s.version} - {s.name}")
-
-# Run pending migrations
-result = m.run()
+# Run all pending migrations inside an atomic transaction
+result = run_on_connection(conn, "./migrations")
 if result.success:
     print(f"Applied {result.applied} migrations")
 else:
-    print(f"Error: {result.error}")
+    print(f"Migration error: {result.error}")
+
+# Check status
+status = status_on_connection(conn, "./migrations")
+for s in status.migrations:
+    print(f"[{'APPLIED' if s.applied else 'PENDING'}] {s.version} - {s.name}")
+
+conn.close()
+
+# Generate SQLAlchemy 2.0 models from DrawDB diagram
+generate_models("schema/drawdb.json", "python", "./app/models.py")
 ```
 
 ---
@@ -240,9 +265,10 @@ The generator automatically strips known architectural prefixes and singularizes
 
 ---
 
-## Standalone CLI Tool
+## CLI Tools
 
-MigraDB includes a standalone compiled CLI tool (`migradb`):
+### Standalone Binary (`migradb`)
+A compiled standalone binary is available for running migrations, inspecting schema status, and generating models without any language dependencies:
 
 ```bash
 # Initialize a new migrations project
@@ -261,7 +287,32 @@ migradb generate --schema drawdb.json --lang rust --out ./src/models
 migradb generate --schema drawdb.json --lang sql --pkg postgres --out ./migrations
 ```
 
+### Node.js CLI via `npx migradb`
+If you are in a JavaScript / TypeScript project, `npx migradb` is included out of the box when you install the `migradb` npm package:
+
+```bash
+npx migradb init --dir ./migrations
+npx migradb create add_users_table --dir ./migrations
+npx migradb status --dir ./migrations
+npx migradb generate --schema drawdb.json --lang node --out ./src/models
+```
+
+---
+
 ## API Reference
+
+### Direct Database Execution Helpers
+Transaction-safe 1-line execution helpers for live databases:
+
+- **Node.js**:
+  - `runOnDatabase(client, migrationsDir)`: Runs pending migrations in transaction. Supports `pg`, `mysql2`, `better-sqlite3`. Returns `Promise<RunResult>`.
+  - `statusOnDatabase(client, migrationsDir)`: Queries migration history. Returns `Promise<StatusResult>`.
+- **Python**:
+  - `run_on_connection(conn, migrations_dir)`: Runs pending migrations in transaction. Supports standard DB-API 2.0 (`psycopg2`, `sqlite3`, `pymysql`). Returns `RunResult`.
+  - `status_on_connection(conn, migrations_dir)`: Queries migration history. Returns `StatusResult`.
+- **Go**:
+  - `RunDB(ctx, db, migrationsDir)`: Runs pending migrations using standard `*sql.DB`. Returns `(*RunResult, error)`.
+  - `StatusDB(ctx, db, migrationsDir)`: Queries migration history. Returns `(*StatusResult, error)`.
 
 ### Migrator Methods
 
@@ -269,11 +320,11 @@ migradb generate --schema drawdb.json --lang sql --pkg postgres --out ./migratio
 Creates a new Migrator instance pointing to the migration files directory.
 
 #### `run()` / `Run()`
-Executes all pending migrations in chronological order within individual transactions.
+Calculates pending migrations in chronological order against the internal tracker.
 - **Returns**: Result object containing `success`, count of `applied` migrations, list of `migrations`, and optional `error`.
 
 #### `status()` / `Status()`
-Inspects all migration files against the database migration history.
+Inspects all migration files against the migration history.
 - **Returns**: Result object containing `success` and a list of migrations with `version`, `name`, `applied` (boolean), and `applied_at` timestamp.
 
 #### `create(name, content)` / `Create(name, content string)`
@@ -284,14 +335,14 @@ Creates a new migration file with the current UTC timestamp: `<timestamp>_<name>
 Safely removes the most recent migration file **only** if it has not yet been applied to the database.
 - **Returns**: Result object containing `success`, `removed` path, informational message, and optional `error`.
 
-#### `generateModels(schemaPath, targetLang, outputDir, pkgName)` / `GenerateModels(...)`
-Generates strongly-typed entity model classes from a DrawDB JSON export file.
+#### `generateModels(schemaPath, targetLang, outputDir, pkgName)` / `generate_models(...)`
+Generates strongly-typed entity model classes from a DrawDB JSON export file. Available as a standalone function and as a `Migrator` method across Go, Node.js, and Python.
 - **Parameters**:
   - `schemaPath`: Path to the DrawDB JSON export file
-  - `targetLang`: Language target (`"go"`, `"node"`, or `"python"`)
+  - `targetLang`: Language target (`"go"`, `"node"`, `"python"`, `"rust"`, `"csharp"`, `"sql"`)
   - `outputDir`: Target directory where generated files will be written
   - `pkgName`: Package name (for Go) or Namespace (for C#)
-- **Returns**: Result object containing `success`, file `count`, list of written `files`, and optional `error`.
+- **Returns**: Result object containing `success`, file `count` (or list of `files`), and optional `error`.
 
 ---
 

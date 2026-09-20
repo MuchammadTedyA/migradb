@@ -1,388 +1,377 @@
 # Node.js Examples
 
-Practical examples for using MigrDB in Node.js projects.
+Practical, production-ready examples for using MigrDB in Node.js and TypeScript projects.
 
 ## Table of Contents
 
-- [Basic Usage](#basic-usage)
+- [Real Database Drivers](#real-database-drivers)
+  - [PostgreSQL (`pg`)](#postgresql-pg)
+  - [MySQL (`mysql2`)](#mysql-mysql2)
+  - [SQLite (`better-sqlite3`)](#sqlite-better-sqlite3)
 - [Express Integration](#express-integration)
 - [Fastify Integration](#fastify-integration)
-- [CLI Tool](#cli-tool)
-- [Multi-Database](#multi-database)
-- [Migration Generator](#migration-generator)
+- [Using the CLI (`npx migradb`)](#using-the-cli-npx-migradb)
+- [DrawDB Model Generation](#drawdb-model-generation)
+- [Multi-Database Migrations](#multi-database-migrations)
+- [Dynamic Migration Creator](#dynamic-migration-creator)
 
-## Basic Usage
+---
+
+## Real Database Drivers
+
+MigrDB provides `runOnDatabase` and `statusOnDatabase` which directly accept live database clients, wrap migrations inside transactions, and maintain the `schema_migrations` audit table.
+
+### PostgreSQL (`pg`)
+
+```bash
+npm install migradb pg
+```
 
 ```javascript
-const { Migrator } = require('migradb');
+const { Pool } = require('pg');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
 
-const m = new Migrator('./migrations');
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:secret@localhost:5432/myapp',
+});
 
-// Check status
-const status = m.status();
-if (status.success) {
+async function main() {
+    // 1. Check current migration status
+    const status = await statusOnDatabase(pool, './migrations');
     console.log('Migration Status:');
-    status.migrations.forEach(s => {
-        const statusStr = s.applied ? 'APPLIED' : 'PENDING';
-        console.log(`  [${statusStr}] ${s.version} - ${s.name}`);
+    status.migrations.forEach(m => {
+        console.log(`  [${m.applied ? 'APPLIED' : 'PENDING'}] ${m.version} - ${m.name}`);
     });
+
+    // 2. Apply all pending migrations in atomic transactions
+    const result = await runOnDatabase(pool, './migrations');
+    if (result.success) {
+        console.log(`\nSuccessfully applied ${result.applied} migration(s)!`);
+    } else {
+        console.error('\nMigration failed:', result.error);
+        process.exit(1);
+    }
+
+    await pool.end();
 }
 
-// Run migrations
-const result = m.run();
-if (result.success) {
-    console.log(`\nApplied ${result.applied} migrations`);
-}
+main().catch(console.error);
 ```
+
+---
+
+### MySQL (`mysql2`)
+
+```bash
+npm install migradb mysql2
+```
+
+```javascript
+const mysql = require('mysql2/promise');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
+
+async function main() {
+    const connection = await mysql.createConnection({
+        host: 'localhost',
+        user: 'root',
+        password: 'password',
+        database: 'myapp',
+    });
+
+    const result = await runOnDatabase(connection, './migrations');
+    if (result.success) {
+        console.log(`Applied ${result.applied} migrations`);
+    } else {
+        console.error('Migration error:', result.error);
+    }
+
+    await connection.end();
+}
+
+main().catch(console.error);
+```
+
+---
+
+### SQLite (`better-sqlite3`)
+
+```bash
+npm install migradb better-sqlite3
+```
+
+```javascript
+const Database = require('better-sqlite3');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
+
+const db = new Database('./app.db');
+
+async function main() {
+    const result = await runOnDatabase(db, './migrations');
+    if (result.success) {
+        console.log(`Applied ${result.applied} SQLite migrations`);
+    } else {
+        console.error('Error:', result.error);
+    }
+
+    db.close();
+}
+
+main().catch(console.error);
+```
+
+---
 
 ## Express Integration
 
+Run pending migrations automatically when the Express server boots up:
+
 ```javascript
 const express = require('express');
-const { Migrator } = require('migradb');
+const { Pool } = require('pg');
+const { runOnDatabase, statusOnDatabase, Migrator } = require('migradb');
 
 const app = express();
-const m = new Migrator('./migrations');
+app.use(express.json());
 
-// Run migrations on startup
-const initResult = m.run();
-if (initResult.success) {
-    console.log(`Applied ${initResult.applied} migrations`);
-} else {
-    console.error('Migration failed:', initResult.error);
-    process.exit(1);
-}
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:secret@localhost:5432/myapp',
+});
+const migrator = new Migrator('./migrations');
 
-// API endpoints
-app.get('/api/migrations/status', (req, res) => {
-    const status = m.status();
-    res.json(status);
+// API endpoint to inspect migration status
+app.get('/api/migrations/status', async (req, res) => {
+    try {
+        const status = await statusOnDatabase(pool, './migrations');
+        res.json(status);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.post('/api/migrations/run', (req, res) => {
-    const result = m.run();
-    res.json(result);
+// API endpoint to trigger migrations manually
+app.post('/api/migrations/run', async (req, res) => {
+    try {
+        const result = await runOnDatabase(pool, './migrations');
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
+// API endpoint to create a new migration file
 app.post('/api/migrations/create', (req, res) => {
     const { name, content } = req.body;
-    const result = m.create(name, content);
+    if (!name) {
+        return res.status(400).json({ error: 'Migration name is required' });
+    }
+    const result = migrator.create(name, content || '-- Add SQL here\n');
     res.json(result);
 });
 
-app.listen(3000, () => {
-    console.log('Server running on port 3000');
-});
-```
-
-## Fastify Integration
-
-```javascript
-const fastify = require('fastify')({ logger: true });
-const { Migrator } = require('migradb');
-
-const m = new Migrator('./migrations');
-
-// Run migrations on startup
-fastify.addHook('onReady', async () => {
-    const result = m.run();
+// Bootstrap server with auto-migration
+async function startServer() {
+    console.log('Checking and running database migrations...');
+    const result = await runOnDatabase(pool, './migrations');
     if (!result.success) {
-        throw new Error(result.error);
-    }
-    fastify.log.info(`Applied ${result.applied} migrations`);
-});
-
-// Routes
-fastify.get('/migrations/status', async () => {
-    return m.status();
-});
-
-fastify.post('/migrations/run', async () => {
-    return m.run();
-});
-
-fastify.post('/migrations/create', async (request) => {
-    const { name, content } = request.body;
-    return m.create(name, content);
-});
-
-// Start server
-fastify.listen({ port: 3000 }, (err) => {
-    if (err) {
-        fastify.log.error(err);
+        console.error('Failed to apply migrations:', result.error);
         process.exit(1);
     }
-});
-```
+    console.log(`Applied ${result.applied} migrations.`);
 
-## CLI Tool
-
-```javascript
-#!/usr/bin/env node
-
-const { Migrator } = require('migradb');
-const fs = require('fs');
-const path = require('path');
-
-function printUsage() {
-    console.log('Usage: migrate <command> [options]');
-    console.log('');
-    console.log('Commands:');
-    console.log('  run      Apply pending migrations');
-    console.log('  status   Show migration status');
-    console.log('  create   Create new migration file');
-    console.log('  remove   Remove last pending migration');
-    console.log('');
-    console.log('Options:');
-    console.log('  --dir    Migrations directory (default: ./migrations)');
-}
-
-function handleRun(m) {
-    const result = m.run();
-
-    if (!result.success) {
-        console.error('Error:', result.error);
-        process.exit(1);
-    }
-
-    if (result.applied === 0) {
-        console.log('No pending migrations');
-    } else {
-        console.log(`Applied ${result.applied} migrations:`);
-        result.migrations.forEach(m => {
-            console.log(`  - ${m.version}: ${m.name}`);
-        });
-    }
-}
-
-function handleStatus(m) {
-    const status = m.status();
-
-    if (!status.success) {
-        console.error('Error:', status.error);
-        process.exit(1);
-    }
-
-    status.migrations.forEach(s => {
-        const statusStr = s.applied ? 'APPLIED' : 'PENDING';
-        console.log(`[${statusStr}] ${s.version} - ${s.name}`);
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
     });
 }
 
-function handleCreate(m, name) {
-    if (!name) {
-        console.error('Error: Migration name required');
-        console.log('Usage: migrate create <name>');
-        process.exit(1);
-    }
-
-    const result = m.create(name, '-- Add your SQL here\n');
-
-    if (!result.success) {
-        console.error('Error:', result.error);
-        process.exit(1);
-    }
-
-    console.log(`Created: ${result.path}`);
-}
-
-function handleRemove(m) {
-    const result = m.removePending();
-
-    if (!result.success) {
-        console.error('Error:', result.error);
-        process.exit(1);
-    }
-
-    if (result.removed) {
-        console.log(`Removed: ${result.removed}`);
-    } else {
-        console.log(result.message);
-    }
-}
-
-function main() {
-    const args = process.argv.slice(2);
-
-    if (args.length === 0) {
-        printUsage();
-        return;
-    }
-
-    let migrationsDir = './migrations';
-    const command = args[0];
-
-    // Parse options
-    for (let i = 1; i < args.length; i++) {
-        if (args[i] === '--dir' && args[i + 1]) {
-            migrationsDir = args[i + 1];
-            i++;
-        }
-    }
-
-    const m = new Migrator(migrationsDir);
-
-    switch (command) {
-        case 'run':
-            handleRun(m);
-            break;
-        case 'status':
-            handleStatus(m);
-            break;
-        case 'create':
-            handleCreate(m, args.find(a => !a.startsWith('--')));
-            break;
-        case 'remove':
-            handleRemove(m);
-            break;
-        default:
-            console.error(`Unknown command: ${command}`);
-            printUsage();
-            process.exit(1);
-    }
-}
-
-main();
+startServer().catch(console.error);
 ```
 
-## Multi-Database
+---
+
+## Fastify Integration
+
+Use Fastify's `onReady` hook to execute migrations before accepting incoming traffic:
 
 ```javascript
-const { Migrator } = require('migradb');
+const fastify = require('fastify')({ logger: true });
+const { Pool } = require('pg');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
 
-const databases = {
-    users: new Migrator('./migrations/users'),
-    orders: new Migrator('./migrations/orders'),
-    products: new Migrator('./migrations/products'),
-};
-
-async function runAllMigrations() {
-    const results = {};
-
-    for (const [name, m] of Object.entries(databases)) {
-        const result = m.run();
-        results[name] = result;
-
-        if (result.success) {
-            console.log(`${name}: Applied ${result.applied} migrations`);
-        } else {
-            console.error(`${name}: Error - ${result.error}`);
-        }
-    }
-
-    return results;
-}
-
-async function checkAllStatus() {
-    const status = {};
-
-    for (const [name, m] of Object.entries(databases)) {
-        status[name] = m.status();
-    }
-
-    return status;
-}
-
-runAllMigrations();
-```
-
-## Migration Generator
-
-```javascript
-const { Migrator } = require('migradb');
-
-class TableMigration {
-    constructor(migrator) {
-        this.migrator = migrator;
-    }
-
-    createTable(tableName, columns) {
-        const columnDefs = columns.map(col => {
-            let def = `${col.name} ${col.type}`;
-
-            if (!col.nullable) def += ' NOT NULL';
-            if (col.default) def += ` DEFAULT ${col.default}`;
-            if (col.primaryKey) def += ' PRIMARY KEY';
-            if (col.unique) def += ' UNIQUE';
-
-            return def;
-        });
-
-        const indexes = columns
-            .filter(col => !col.primaryKey)
-            .map(col => `CREATE INDEX IF NOT EXISTS idx_${tableName}_${col.name} ON ${tableName}(${col.name});`);
-
-        const sql = `CREATE TABLE IF NOT EXISTS ${tableName} (\n    ${columnDefs.join(',\n    ')}\n);\n\n${indexes.join('\n')}`;
-
-        return this.migrator.create(`create ${tableName} table`, sql);
-    }
-
-    addColumn(tableName, column) {
-        let sql = `ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${column.name} ${column.type}`;
-
-        if (!column.nullable) sql += ' NOT NULL';
-        if (column.default) sql += ` DEFAULT ${column.default}`;
-
-        return this.migrator.create(`add ${column.name} to ${tableName}`, sql + ';');
-    }
-
-    addIndex(tableName, columns, unique = false) {
-        const indexType = unique ? 'UNIQUE INDEX' : 'INDEX';
-        const indexName = `idx_${tableName}_${columns.join('_')}`;
-        const sql = `CREATE ${indexType} IF NOT EXISTS ${indexName} ON ${tableName}(${columns.join(', ')});`;
-
-        return this.migrator.create(`add index to ${tableName}`, sql);
-    }
-}
-
-// Usage
-const m = new Migrator('./migrations');
-const tm = new TableMigration(m);
-
-// Create users table
-tm.createTable('m_users', [
-    { name: 'id', type: 'UUID', primaryKey: true, default: 'gen_random_uuid()' },
-    { name: 'username', type: 'VARCHAR(100)', unique: true },
-    { name: 'email', type: 'VARCHAR(255)', unique: true },
-    { name: 'password_hash', type: 'TEXT' },
-    { name: 'is_active', type: 'BOOLEAN', default: 'true' },
-    { name: 'created_at', type: 'TIMESTAMPTZ', default: 'NOW()' },
-]);
-
-// Add column
-tm.addColumn('m_users', {
-    name: 'phone',
-    type: 'VARCHAR(20)',
-    nullable: true,
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:secret@localhost:5432/myapp',
 });
 
-// Add index
-tm.addIndex('m_users', ['email']);
-tm.addIndex('m_users', ['email', 'username'], true);
-```
+// Run migrations during startup
+fastify.addHook('onReady', async () => {
+    fastify.log.info('Running database migrations...');
+    const result = await runOnDatabase(pool, './migrations');
+    if (!result.success) {
+        fastify.log.error(`Migration failed: ${result.error}`);
+        throw new Error(result.error);
+    }
+    fastify.log.info(`Applied ${result.applied} migrations.`);
+});
 
-## Environment-Based Configuration
+// Clean up database connection on shutdown
+fastify.addHook('onClose', async () => {
+    await pool.end();
+});
 
-```javascript
-const { Migrator } = require('migradb');
-const path = require('path');
+// Health & status routes
+fastify.get('/migrations/status', async () => {
+    return statusOnDatabase(pool, './migrations');
+});
 
-const config = {
-    migrationsDir: process.env.MIGRATIONS_DIR || path.join(__dirname, 'migrations'),
-    environment: process.env.NODE_ENV || 'development',
+fastify.post('/migrations/run', async () => {
+    return runOnDatabase(pool, './migrations');
+});
+
+const start = async () => {
+    try {
+        await fastify.listen({ port: 3000 });
+    } catch (err) {
+        fastify.log.error(err);
+        process.exit(1);
+    }
 };
 
-const m = new Migrator(config.migrationsDir);
+start();
+```
 
-if (config.environment !== 'test') {
-    const result = m.run();
-    if (result.success) {
-        console.log(`[${config.environment}] Applied ${result.applied} migrations`);
-    } else {
-        console.error(`[${config.environment}] Migration failed: ${result.error}`);
-        process.exit(1);
+---
+
+## Using the CLI (`npx migradb`)
+
+The `migradb` npm package bundles a CLI utility directly accessible via `npx`:
+
+```bash
+# 1. Initialize a new migrations project
+npx migradb init --dir ./migrations
+
+# 2. Create a timestamped migration
+npx migradb create add_users_table --dir ./migrations
+
+# 3. Check migration file status
+npx migradb status --dir ./migrations
+
+# 4. Generate TypeScript models from DrawDB visual schema
+npx migradb generate --schema drawdb.json --lang node --out ./src/models
+```
+
+You can also add helper scripts to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "migrate:new": "migradb create",
+    "migrate:status": "migradb status",
+    "codegen": "migradb generate --schema schema.json --lang node --out ./src/models"
+  }
+}
+```
+
+---
+
+## DrawDB Model Generation
+
+Export your diagram as JSON from [DrawDB](https://drawdb.app) and generate complete TypeScript definitions with relationships and exports:
+
+```javascript
+const { generateModels } = require('migradb');
+
+// Generate TypeScript models into src/models
+const result = generateModels(
+    './schema/drawdb.json',  // Schema export file
+    'node',                  // Target: "node" (TypeScript)
+    './src/models'           // Target directory
+);
+
+if (result.success) {
+    console.log(`Generated ${result.files.length} model files:`);
+    result.files.forEach(file => console.log(`  - ${file}`));
+} else {
+    console.error('Model generation failed:', result.error);
+}
+```
+
+Generated files include:
+- Strongly typed TypeScript interfaces for each table
+- Automatic table prefix stripping (`m_users` -> `User.ts`)
+- Foreign key navigation properties
+- Centralized barrel export in `index.ts`:
+
+```typescript
+// src/models/index.ts is generated automatically
+import { User, Company, Order } from './models';
+```
+
+---
+
+## Multi-Database Migrations
+
+If your application uses multiple databases or multi-tenant schemas:
+
+```javascript
+const { Pool } = require('pg');
+const { runOnDatabase } = require('migradb');
+
+const tenants = [
+    { name: 'tenant_a', url: process.env.TENANT_A_URL },
+    { name: 'tenant_b', url: process.env.TENANT_B_URL },
+];
+
+async function migrateAllTenants() {
+    for (const tenant of tenants) {
+        console.log(`Migrating tenant: ${tenant.name}...`);
+        const pool = new Pool({ connectionString: tenant.url });
+        try {
+            const result = await runOnDatabase(pool, './migrations');
+            if (result.success) {
+                console.log(`  [${tenant.name}] Applied ${result.applied} migrations`);
+            } else {
+                console.error(`  [${tenant.name}] Failed:`, result.error);
+            }
+        } finally {
+            await pool.end();
+        }
     }
 }
 
-module.exports = m;
+migrateAllTenants().catch(console.error);
+```
+
+---
+
+## Dynamic Migration Creator
+
+Create formatted migration files programmatically:
+
+```javascript
+const { Migrator } = require('migradb');
+
+const migrator = new Migrator('./migrations');
+
+function createTableMigration(tableName, columns) {
+    const columnDefs = columns.map(col => {
+        let def = `    ${col.name} ${col.type}`;
+        if (!col.nullable) def += ' NOT NULL';
+        if (col.default) def += ` DEFAULT ${col.default}`;
+        if (col.primaryKey) def += ' PRIMARY KEY';
+        return def;
+    });
+
+    const sql = `CREATE TABLE IF NOT EXISTS ${tableName} (\n${columnDefs.join(',\n')}\n);\n`;
+    return migrator.create(`create_${tableName}_table`, sql);
+}
+
+// Generate a migration file
+const result = createTableMigration('products', [
+    { name: 'id', type: 'SERIAL', primaryKey: true },
+    { name: 'name', type: 'VARCHAR(255)', nullable: false },
+    { name: 'price', type: 'DECIMAL(10,2)', nullable: false, default: '0.00' },
+    { name: 'created_at', type: 'TIMESTAMP', default: 'CURRENT_TIMESTAMP' },
+]);
+
+console.log('Created migration:', result.path);
 ```

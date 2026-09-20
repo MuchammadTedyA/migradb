@@ -34,28 +34,69 @@ pnpm add migradb
 
 ## Quick Start
 
+MigraDB provides both direct database runners (`runOnDatabase`, `statusOnDatabase`) for real database connections, and a native in-memory core `Migrator`.
+
+### 1. Running Migrations on a Real Database (Recommended)
+
+#### PostgreSQL (`pg`)
+```javascript
+const { Pool } = require('pg');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+async function main() {
+    // Check status
+    const status = await statusOnDatabase(pool, './migrations');
+    console.log('Status:', status.migrations);
+
+    // Run pending migrations
+    const result = await runOnDatabase(pool, './migrations');
+    if (result.success) {
+        console.log(`Applied ${result.applied} migrations!`);
+    } else {
+        console.error('Migration error:', result.error);
+    }
+}
+
+main();
+```
+
+#### MySQL (`mysql2`)
+```javascript
+const mysql = require('mysql2/promise');
+const { runOnDatabase } = require('migradb');
+
+async function main() {
+    const conn = await mysql.createConnection({
+        host: 'localhost', user: 'root', password: '', database: 'mydb'
+    });
+    const result = await runOnDatabase(conn, './migrations');
+    console.log(`Applied ${result.applied} migrations!`);
+}
+
+main();
+```
+
+#### SQLite (`better-sqlite3`)
+```javascript
+const Database = require('better-sqlite3');
+const { runOnDatabase } = require('migradb');
+
+const db = new Database('app.db');
+const result = await runOnDatabase(db, './migrations');
+console.log(`Applied ${result.applied} migrations!`);
+```
+
+### 2. In-Memory Native Core Engine (`Migrator`)
+
+For validating migration files, timestamps, and syntax using the Rust engine:
+
 ```javascript
 const { Migrator } = require('migradb');
 
-// Create migrator instance
 const m = new Migrator('./migrations');
-
-// Run all pending migrations
-const result = m.run();
-
-if (result.success) {
-    console.log(`Applied ${result.applied} migrations`);
-} else {
-    console.error(result.error);
-}
-```
-
-### ES Modules
-
-```javascript
-import { Migrator } from 'migradb';
-
-const m = new Migrator('./migrations');
+const status = m.status();
 const result = m.run();
 ```
 
@@ -339,67 +380,116 @@ switch (command) {
 }
 ```
 
+## Using the CLI (`npx migradb`)
+
+The `migradb` npm package bundles a CLI utility directly accessible via `npx`:
+
+```bash
+# 1. Initialize a migrations directory
+npx migradb init --dir ./migrations
+
+# 2. Create a timestamped migration file
+npx migradb create add_users_table --dir ./migrations
+
+# 3. Inspect migration status table
+npx migradb status --dir ./migrations
+
+# 4. Generate TypeScript models from DrawDB JSON diagram
+npx migradb generate --schema drawdb.json --lang node --out ./src/models
+```
+
+You can also add helper scripts to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "migrate:create": "migradb create",
+    "migrate:status": "migradb status",
+    "codegen": "migradb generate --schema schema.json --lang node --out ./src/models"
+  }
+}
+```
+
 ## Integration with Frameworks
 
-### Express.js
+### Express.js (Auto-Migration on Startup)
 
 ```javascript
 const express = require('express');
-const { Migrator } = require('migradb');
+const { Pool } = require('pg');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
 
 const app = express();
-const m = new Migrator('./migrations');
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Run migrations on startup
-const result = m.run();
-if (result.success) {
-    console.log(`Applied ${result.applied} migrations`);
-} else {
-    console.error('Migration failed:', result.error);
-    process.exit(1);
+// Endpoints
+app.get('/api/migrations/status', async (req, res) => {
+    try {
+        const status = await statusOnDatabase(pool, './migrations');
+        res.json(status);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/migrations/run', async (req, res) => {
+    try {
+        const result = await runOnDatabase(pool, './migrations');
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Run migrations and start server
+async function start() {
+    console.log('Running database migrations...');
+    const result = await runOnDatabase(pool, './migrations');
+    if (!result.success) {
+        console.error('Migration failed:', result.error);
+        process.exit(1);
+    }
+    console.log(`Applied ${result.applied} migrations!`);
+
+    app.listen(3000, () => {
+        console.log('Server running on http://localhost:3000');
+    });
 }
 
-// Migration status endpoint
-app.get('/api/migrations/status', (req, res) => {
-    const status = m.status();
-    res.json(status);
-});
-
-// Run migrations endpoint
-app.post('/api/migrations/run', (req, res) => {
-    const result = m.run();
-    res.json(result);
-});
-
-app.listen(3000, () => {
-    console.log('Server running on port 3000');
-});
+start();
 ```
 
 ### Fastify
 
 ```javascript
 const fastify = require('fastify')({ logger: true });
-const { Migrator } = require('migradb');
+const { Pool } = require('pg');
+const { runOnDatabase, statusOnDatabase } = require('migradb');
 
-const m = new Migrator('./migrations');
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Run migrations on startup
 fastify.addHook('onReady', async () => {
-    const result = m.run();
+    fastify.log.info('Applying database migrations...');
+    const result = await runOnDatabase(pool, './migrations');
     if (!result.success) {
+        fastify.log.error(`Migration failed: ${result.error}`);
         throw new Error(result.error);
     }
-    fastify.log.info(`Applied ${result.applied} migrations`);
+    fastify.log.info(`Applied ${result.applied} migrations.`);
+});
+
+fastify.addHook('onClose', async () => {
+    await pool.end();
 });
 
 // Migration routes
 fastify.get('/migrations/status', async () => {
-    return m.status();
+    return statusOnDatabase(pool, './migrations');
 });
 
 fastify.post('/migrations/run', async () => {
-    return m.run();
+    return runOnDatabase(pool, './migrations');
 });
 
 fastify.listen({ port: 3000 }, (err) => {
@@ -413,32 +503,32 @@ fastify.listen({ port: 3000 }, (err) => {
 ### NestJS
 
 ```typescript
-import { Module, OnModuleInit } from '@nestjs/common';
-import { Migrator } from 'migradb';
+import { Injectable, Module, OnModuleInit } from '@nestjs/common';
+import { Pool } from 'pg';
+import { runOnDatabase, statusOnDatabase } from 'migradb';
 
 @Injectable()
 export class MigrationService implements OnModuleInit {
-    private migrator: Migrator;
+    private pool: Pool;
 
     constructor() {
-        this.migrator = new Migrator('./migrations');
+        this.pool = new Pool({ connectionString: process.env.DATABASE_URL });
     }
 
     async onModuleInit() {
-        const result = this.migrator.run();
-        if (result.success) {
-            console.log(`Applied ${result.applied} migrations`);
-        } else {
-            throw new Error(result.error);
+        const result = await runOnDatabase(this.pool, './migrations');
+        if (!result.success) {
+            throw new Error(`Migration failed: ${result.error}`);
         }
+        console.log(`Applied ${result.applied} migrations on startup`);
     }
 
-    getStatus() {
-        return this.migrator.status();
+    async getStatus() {
+        return statusOnDatabase(this.pool, './migrations');
     }
 
-    run() {
-        return this.migrator.run();
+    async run() {
+        return runOnDatabase(this.pool, './migrations');
     }
 }
 
