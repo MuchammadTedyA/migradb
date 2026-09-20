@@ -200,9 +200,74 @@ type GenerateModelsResult struct {
 
 ---
 
+### `SyncOptions`
+
+Configuration options for `migration.SyncDB()`.
+
+```go
+type SyncOptions struct {
+    SchemaPath        string // Path to drawdb.json (default: "./schema/drawdb.json")
+    MigrationsDir     string // Migrations directory (default: "./migrations")
+    SchemaDir         string // Schema directory for snapshots (default: "./schema")
+    Dialect           string // "postgres" (default), "mysql", or "sqlite"
+    ForceFull         bool   // Force baseline generation
+    SaveMigrationFile bool   // Automatically write timestamped audit .sql migration
+    MigrationName     string // Migration slug (default: "sync_drawdb")
+}
+```
+
+### `SyncResult`
+
+Return value from `migration.SyncDB()`.
+
+```go
+type SyncResult struct {
+    Success       bool     `json:"success"`
+    IsEmpty       bool     `json:"is_empty"`
+    Applied       int      `json:"applied"`
+    DiffSummary   string   `json:"diff_summary"`
+    MigrationPath string   `json:"migration_path,omitempty"`
+    Statements    []string `json:"statements,omitempty"`
+    Error         string   `json:"error,omitempty"`
+}
+```
+
+---
+
 ## Functions
 
+### `SyncDB`
+
+Synchronizes a live `*sql.DB` database directly against a DrawDB visual schema with dynamic multi-dialect translation and snapshot tracking.
+
+```go
+func SyncDB(ctx context.Context, db *sql.DB, opts SyncOptions) (*SyncResult, error)
+```
+
+- **Features**:
+  - Auto-creates `./schema` and `./migrations` folders if missing.
+  - Translates schema diffs to PostgreSQL (`DialectPostgres`), MySQL (`DialectMySQL`), or SQLite (`DialectSQLite`).
+  - Switching database engine midway requires **zero migration regeneration**.
+  - Atomically applies DDL inside a transaction, records `schema_migrations`, writes an audit `.sql` file, and updates snapshots.
+
+### `RunDB`
+
+Executes all pending migration `.sql` files in chronological order against a live `*sql.DB` database inside atomic transactions.
+
+```go
+func RunDB(ctx context.Context, db *sql.DB, migrationsDir string) (*RunResult, error)
+```
+
+### `StatusDB`
+
+Inspects applied vs pending migrations on a live `*sql.DB` database.
+
+```go
+func StatusDB(ctx context.Context, db *sql.DB, migrationsDir string) (*StatusResult, error)
+```
+
 ### `NewMigrator`
+
 
 Creates and initializes a new `Migrator` instance.
 

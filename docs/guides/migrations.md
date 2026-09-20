@@ -83,6 +83,21 @@ result = m.create("add products table", """
 """)
 ```
 
+### Automatic Generation from DrawDB (`migradb diff`)
+
+You can generate incremental migrations directly by comparing your visual schema against previous snapshots:
+
+```bash
+# PostgreSQL (default dialect)
+migradb diff --schema ./schema/drawdb.json --name add_products_table
+
+# MySQL dialect
+migradb diff --schema ./schema/drawdb.json --name add_products_table --dialect mysql
+
+# SQLite dialect
+migradb diff --schema ./schema/drawdb.json --name add_products_table --dialect sqlite
+```
+
 ### Manual Creation
 
 Create a file with the timestamp prefix:

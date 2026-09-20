@@ -1,4 +1,5 @@
 pub mod csharp;
+pub mod drawdb_diff;
 pub mod drawdb_parser;
 pub mod golang;
 pub mod naming;
@@ -7,6 +8,8 @@ pub mod python;
 pub mod rust_models;
 pub mod schema;
 pub mod sql;
+
+pub use drawdb_diff::{diff_drawdb, plan_sync_drawdb, DiffResult, SchemaDiff, SyncPlan};
 
 use crate::error::{MigrationError, Result};
 use std::fs;

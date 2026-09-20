@@ -13,6 +13,8 @@ extern char* migrator_status(void* handle);
 extern char* migrator_create(void* handle, const char* name, const char* content);
 extern char* migrator_remove_pending(void* handle);
 extern char* migrator_generate_models(void* handle, const char* schema_path, const char* target_lang, const char* output_dir, const char* package_name);
+extern char* migrator_diff_drawdb(void* handle, const char* schema_path, const char* migration_name, const char* dialect, int force_full);
+extern char* migrator_plan_sync_drawdb(void* handle, const char* schema_path, const char* dialect, int force_full);
 extern void migrator_free_string(char* s);
 */
 import "C"
@@ -153,3 +155,83 @@ func (m *Migrator) GenerateModels(schemaPath, targetLang, outputDir, pkgName str
 	}
 	return &result, nil
 }
+
+func (m *Migrator) DiffDrawDB(schemaPath, name, dialect string, forceFull bool) (*DiffResult, error) {
+	if dialect == "" {
+		dialect = "postgres"
+	}
+	if name == "" {
+		name = "sync_drawdb"
+	}
+	cSchema := C.CString(schemaPath)
+	defer C.free(unsafe.Pointer(cSchema))
+
+	cName := C.CString(name)
+	defer C.free(unsafe.Pointer(cName))
+
+	cDialect := C.CString(dialect)
+	defer C.free(unsafe.Pointer(cDialect))
+
+	fullVal := C.int(0)
+	if forceFull {
+		fullVal = C.int(1)
+	}
+
+	cResult := C.migrator_diff_drawdb(m.handle, cSchema, cName, cDialect, fullVal)
+	if cResult == nil {
+		return nil, fmt.Errorf("failed to execute diff")
+	}
+	defer C.migrator_free_string(cResult)
+
+	resultStr := C.GoString(cResult)
+	var result DiffResult
+	if err := json.Unmarshal([]byte(resultStr), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse diff result: %w", err)
+	}
+	if !result.Success && result.Error != "" {
+		return &result, fmt.Errorf("%s", result.Error)
+	}
+	return &result, nil
+}
+
+func (m *Migrator) PlanSyncDrawDB(schemaPath, dialect string, forceFull bool) (*SyncPlan, error) {
+	if dialect == "" {
+		dialect = "postgres"
+	}
+	cSchema := C.CString(schemaPath)
+	defer C.free(unsafe.Pointer(cSchema))
+
+	cDialect := C.CString(dialect)
+	defer C.free(unsafe.Pointer(cDialect))
+
+	fullVal := C.int(0)
+	if forceFull {
+		fullVal = C.int(1)
+	}
+
+	cResult := C.migrator_plan_sync_drawdb(m.handle, cSchema, cDialect, fullVal)
+	if cResult == nil {
+		return nil, fmt.Errorf("failed to plan sync")
+	}
+	defer C.migrator_free_string(cResult)
+
+	resultStr := C.GoString(cResult)
+	var result SyncPlan
+	if err := json.Unmarshal([]byte(resultStr), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse sync plan: %w", err)
+	}
+	if !result.Success && result.Error != "" {
+		return &result, fmt.Errorf("%s", result.Error)
+	}
+	return &result, nil
+}
+
+func DiffDrawDB(schemaPath, migrationsDir, name, dialect string, forceFull bool) (*DiffResult, error) {
+	m := NewMigrator(migrationsDir)
+	if m == nil {
+		return nil, fmt.Errorf("failed to initialize migradb engine")
+	}
+	defer m.Close()
+	return m.DiffDrawDB(schemaPath, name, dialect, forceFull)
+}
+

@@ -21,6 +21,8 @@ var (
 	procMigratorRemovePending  *syscall.LazyProc
 	procMigratorFreeString     *syscall.LazyProc
 	procMigratorGenerateModels *syscall.LazyProc
+	procMigratorDiffDrawDB     *syscall.LazyProc
+	procMigratorPlanSyncDrawDB *syscall.LazyProc
 )
 
 func init() {
@@ -35,6 +37,8 @@ func init() {
 	procMigratorRemovePending = modMigrationEngine.NewProc("migrator_remove_pending")
 	procMigratorFreeString = modMigrationEngine.NewProc("migrator_free_string")
 	procMigratorGenerateModels = modMigrationEngine.NewProc("migrator_generate_models")
+	procMigratorDiffDrawDB = modMigrationEngine.NewProc("migrator_diff_drawdb")
+	procMigratorPlanSyncDrawDB = modMigrationEngine.NewProc("migrator_plan_sync_drawdb")
 }
 
 func findDLL() string {
@@ -199,7 +203,87 @@ func (m *Migrator) GenerateModels(schemaPath, targetLang, outputDir, pkgName str
 		return nil, fmt.Errorf("failed to parse result: %w", err)
 	}
 	if !result.Success {
-		return &result, fmt.Errorf(result.Error)
+		return &result, fmt.Errorf("%s", result.Error)
 	}
 	return &result, nil
 }
+
+func boolToUintptr(b bool) uintptr {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func (m *Migrator) DiffDrawDB(schemaPath, name, dialect string, forceFull bool) (*DiffResult, error) {
+	if dialect == "" {
+		dialect = "postgres"
+	}
+	if name == "" {
+		name = "sync_drawdb"
+	}
+	cSchema := cString(schemaPath)
+	cName := cString(name)
+	cDialect := cString(dialect)
+
+	r1, _, _ := procMigratorDiffDrawDB.Call(
+		uintptr(m.handle),
+		uintptr(unsafe.Pointer(cSchema)),
+		uintptr(unsafe.Pointer(cName)),
+		uintptr(unsafe.Pointer(cDialect)),
+		boolToUintptr(forceFull),
+	)
+	if r1 == 0 {
+		return nil, fmt.Errorf("failed to execute diff")
+	}
+	defer procMigratorFreeString.Call(r1)
+
+	resultStr := goString(r1)
+	var result DiffResult
+	if err := json.Unmarshal([]byte(resultStr), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse diff result: %w", err)
+	}
+	if !result.Success && result.Error != "" {
+		return &result, fmt.Errorf("%s", result.Error)
+	}
+	return &result, nil
+}
+
+func (m *Migrator) PlanSyncDrawDB(schemaPath, dialect string, forceFull bool) (*SyncPlan, error) {
+	if dialect == "" {
+		dialect = "postgres"
+	}
+	cSchema := cString(schemaPath)
+	cDialect := cString(dialect)
+
+	r1, _, _ := procMigratorPlanSyncDrawDB.Call(
+		uintptr(m.handle),
+		uintptr(unsafe.Pointer(cSchema)),
+		uintptr(unsafe.Pointer(cDialect)),
+		boolToUintptr(forceFull),
+	)
+	if r1 == 0 {
+		return nil, fmt.Errorf("failed to plan sync")
+	}
+	defer procMigratorFreeString.Call(r1)
+
+	resultStr := goString(r1)
+	var result SyncPlan
+	if err := json.Unmarshal([]byte(resultStr), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse sync plan: %w", err)
+	}
+	if !result.Success && result.Error != "" {
+		return &result, fmt.Errorf("%s", result.Error)
+	}
+	return &result, nil
+}
+
+func DiffDrawDB(schemaPath, migrationsDir, name, dialect string, forceFull bool) (*DiffResult, error) {
+	m := NewMigrator(migrationsDir)
+	if m == nil {
+		return nil, fmt.Errorf("failed to initialize migradb engine")
+	}
+	defer m.Close()
+	return m.DiffDrawDB(schemaPath, name, dialect, forceFull)
+}
+

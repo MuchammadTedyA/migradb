@@ -13,9 +13,13 @@ from migration_engine_py import (
     CreateResult,
     RemoveResult,
     GenerateResult,
+    DiffResult,
+    SyncPlan,
     generate_models,
+    diff_drawdb,
+    plan_sync_drawdb,
 )
-from .runner import run_on_connection, status_on_connection
+from .runner import run_on_connection, status_on_connection, sync_database, detect_dialect
 
 __version__ = "0.1.1"
 __all__ = [
@@ -27,7 +31,14 @@ __all__ = [
     "CreateResult",
     "RemoveResult",
     "GenerateResult",
+    "DiffResult",
+    "SyncPlan",
     "generate_models",
+    "diff_drawdb",
+    "plan_sync_drawdb",
     "run_on_connection",
     "status_on_connection",
+    "sync_database",
+    "detect_dialect",
 ]
+

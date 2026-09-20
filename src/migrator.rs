@@ -153,6 +153,48 @@ impl Migrator {
         crate::codegen::generate_models(schema_path, lang, output_dir, package_or_namespace)
     }
 
+    pub fn diff_drawdb<P: AsRef<Path>>(
+        &self,
+        schema_path: P,
+        migration_name: &str,
+        dialect: Option<&str>,
+        force_full: bool,
+    ) -> Result<crate::codegen::DiffResult> {
+        let schema_p = schema_path.as_ref();
+        let schema_dir = schema_p
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("schema"));
+        crate::codegen::diff_drawdb(
+            schema_p,
+            &self.config.migrations_dir,
+            schema_dir,
+            migration_name,
+            dialect,
+            force_full,
+        )
+    }
+
+    pub fn plan_sync_drawdb<P: AsRef<Path>>(
+        &self,
+        schema_path: P,
+        dialect: Option<&str>,
+        force_full: bool,
+    ) -> Result<crate::codegen::SyncPlan> {
+        let schema_p = schema_path.as_ref();
+        let schema_dir = schema_p
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("schema"));
+        crate::codegen::plan_sync_drawdb(
+            schema_p,
+            &self.config.migrations_dir,
+            schema_dir,
+            dialect,
+            force_full,
+        )
+    }
+
     pub fn get_pending(&self) -> Result<Vec<MigrationFile>> {
         let applied_versions = self.tracker.get_applied_versions()?;
         let migrations = self.parser.parse_directory(&self.config.migrations_dir)?;

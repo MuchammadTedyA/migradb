@@ -4,14 +4,24 @@ Database-specific configuration and best practices for the MigrDB.
 
 ## Table of Contents
 
-- [PostgreSQL](#postgresql)
+- [Zero-Regeneration Multi-Dialect Synchronization](#zero-regeneration-multi-dialect-synchronization)
+- [PostgreSQL (Default Dialect)](#postgresql-default-dialect)
 - [MySQL](#mysql)
 - [SQLite](#sqlite)
 - [Connection Management](#connection-management)
 - [Transaction Handling](#transaction-handling)
 - [Schema Migrations Table](#schema-migrations-table)
 
-## PostgreSQL
+## Zero-Regeneration Multi-Dialect Synchronization
+
+MigraDB's **Approach 1** engine allows you to define your schema once visually in DrawDB (`drawdb.json`). When synchronizing against a live database:
+- **Default Dialect**: **PostgreSQL** is the default dialect.
+- **Full MySQL & SQLite Support**: Dialect-accurate DDL is generated automatically for MySQL (backtick quoting, `MODIFY COLUMN`, InnoDB) and SQLite (portable table creation, column alterations).
+- **Switching Databases Midway**: If you switch databases midway through a project (e.g. SQLite for fast local development/tests -> PostgreSQL or MySQL for cloud production), **you never need to regenerate migration files**. MigraDB calculates the schema diff dynamically at runtime and generates the target dialect's DDL on the fly.
+- **Folder Conventions**: `./schema` and `./migrations` in your project root are created automatically if missing. Files are placed cleanly inside without overwriting unrelated files.
+
+## PostgreSQL (Default Dialect)
+
 
 ### Connection String Format
 

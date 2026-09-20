@@ -180,3 +180,50 @@ func TestRunDBAndStatusDB(t *testing.T) {
 		t.Fatalf("Expected 0 applied on second run, got %d", runRes2.Applied)
 	}
 }
+
+func TestSyncDB(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("mock_migradb", "test_sync")
+	if err != nil {
+		t.Fatalf("Failed to open mock DB: %v", err)
+	}
+	defer db.Close()
+
+	tempDir, err := os.MkdirTemp("", "migradb_sync_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	schemaPath := filepath.Join("..", "schema", "drawdb.json")
+	if _, err := os.Stat(schemaPath); err != nil {
+		t.Skip("schema/drawdb.json not found, skipping sync test")
+	}
+
+	opts := SyncOptions{
+		SchemaPath:        schemaPath,
+		MigrationsDir:     filepath.Join(tempDir, "migrations"),
+		Dialect:           DialectPostgres,
+		SaveMigrationFile: true,
+		MigrationName:     "init_sync",
+	}
+
+	// 1. First sync - creates baseline
+	res, err := SyncDB(ctx, db, opts)
+	if err != nil {
+		t.Fatalf("SyncDB failed: %v", err)
+	}
+	if !res.Success || res.IsEmpty || res.Applied == 0 {
+		t.Fatalf("Expected initial sync to apply statements, got success=%v, applied=%d, empty=%v", res.Success, res.Applied, res.IsEmpty)
+	}
+
+	// 2. Second sync - should be empty (no changes)
+	res2, err := SyncDB(ctx, db, opts)
+	if err != nil {
+		t.Fatalf("Second SyncDB failed: %v", err)
+	}
+	if !res2.Success || !res2.IsEmpty || res2.Applied != 0 {
+		t.Fatalf("Expected second sync to be empty, got success=%v, applied=%d, empty=%v", res2.Success, res2.Applied, res2.IsEmpty)
+	}
+}
+

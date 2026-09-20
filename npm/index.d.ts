@@ -40,6 +40,25 @@ export interface GenerateResult {
   files: Array<string>
   error?: string
 }
+export interface DiffResult {
+  success: boolean
+  migrationPath?: string
+  diffSummary: string
+  isEmpty: boolean
+  statements: Array<string>
+  error?: string
+}
+export interface SyncPlan {
+  success: boolean
+  isEmpty: boolean
+  diffSummary: string
+  statements: Array<string>
+  sql: string
+  dialect: string
+  error?: string
+}
+export declare function diffDrawdb(schemaPath: string, migrationsDir?: string | undefined | null, schemaDir?: string | undefined | null, migrationName?: string | undefined | null, dialect?: string | undefined | null, forceFull?: boolean | undefined | null): DiffResult
+export declare function planSyncDrawdb(schemaPath: string, migrationsDir?: string | undefined | null, schemaDir?: string | undefined | null, dialect?: string | undefined | null, forceFull?: boolean | undefined | null): SyncPlan
 export declare function generateModels(schemaPath: string, targetLang: string, outputDir: string, pkgOrNamespace?: string | undefined | null): GenerateResult
 export declare class Migrator {
   constructor(migrationsDir: string)
@@ -48,4 +67,34 @@ export declare class Migrator {
   status(): StatusResult
   create(name: string, content: string): CreateResult
   removePending(): RemoveResult
+  diffDrawdb(schemaPath: string, migrationName?: string | undefined | null, dialect?: string | undefined | null, forceFull?: boolean | undefined | null): DiffResult
+  planSyncDrawdb(schemaPath: string, dialect?: string | undefined | null, forceFull?: boolean | undefined | null): SyncPlan
 }
+
+export interface SyncDatabaseOptions {
+  schema?: string
+  migrationsDir?: string
+  schemaDir?: string
+  dialect?: 'postgres' | 'mysql' | 'sqlite'
+  saveMigrationFile?: boolean
+  migrationName?: string
+  forceFull?: boolean
+}
+
+export interface SyncDatabaseResult {
+  success: boolean
+  isEmpty: boolean
+  applied: number
+  diffSummary: string
+  migrationPath?: string | null
+  statements: Array<string>
+  error?: string
+}
+
+export declare const diffDrawDB: typeof diffDrawdb
+export declare const planSyncDrawDB: typeof planSyncDrawdb
+export declare function detectDialect(client: any): 'postgres' | 'mysql' | 'sqlite'
+export declare function runOnDatabase(client: any, migrationsDir: string): Promise<RunResult>
+export declare function statusOnDatabase(client: any, migrationsDir: string): Promise<StatusResult>
+export declare function syncDatabase(client: any, options?: SyncDatabaseOptions): Promise<SyncDatabaseResult>
+

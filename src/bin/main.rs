@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use migration_engine::{generate_models, InMemoryTracker, MigratorBuilder, TargetLanguage};
+use migration_engine::{diff_drawdb, generate_models, InMemoryTracker, MigratorBuilder, TargetLanguage};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -58,6 +58,33 @@ enum Commands {
         #[arg(short, long)]
         pkg: Option<String>,
     },
+
+    /// Calculate schema diff against snapshot and generate an incremental SQL migration
+    Diff {
+        /// Path to DrawDB JSON schema file
+        #[arg(short, long)]
+        schema: PathBuf,
+
+        /// Migration description name (e.g. add_user_avatar)
+        #[arg(short, long, default_value = "sync_drawdb")]
+        name: String,
+
+        /// Path to the migrations directory
+        #[arg(short, long, default_value = "./migrations")]
+        dir: PathBuf,
+
+        /// Path to the schema directory for snapshots
+        #[arg(long, default_value = "./schema")]
+        schema_dir: PathBuf,
+
+        /// SQL dialect: postgres (default), mysql, or sqlite
+        #[arg(long, default_value = "postgres")]
+        dialect: String,
+
+        /// Force generating a full baseline schema dump even if a snapshot exists
+        #[arg(long)]
+        full: bool,
+    },
 }
 
 fn main() {
@@ -89,6 +116,19 @@ fn main() {
             pkg,
         } => {
             if let Err(e) = handle_generate(&schema, &lang, &out, pkg.as_deref()) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Diff {
+            schema,
+            name,
+            dir,
+            schema_dir,
+            dialect,
+            full,
+        } => {
+            if let Err(e) = handle_diff(&schema, &name, &dir, &schema_dir, &dialect, full) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
@@ -180,3 +220,32 @@ fn handle_generate(
     println!();
     Ok(())
 }
+
+fn handle_diff(
+    schema: &Path,
+    name: &str,
+    dir: &Path,
+    schema_dir: &Path,
+    dialect: &str,
+    full: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let res = diff_drawdb(schema, dir, schema_dir, name, Some(dialect), full)?;
+
+    if res.is_empty {
+        println!("\n{}", res.diff_summary);
+        println!("No migration file was created.\n");
+        return Ok(());
+    }
+
+    println!("\n{}\n", res.diff_summary);
+    if let Some(p) = res.migration_path {
+        println!("Created incremental migration ({} dialect):", dialect);
+        println!("  - {}", p);
+    }
+    println!("Updated schema snapshots:");
+    println!("  - {}/drawdb_snapshot.json", schema_dir.display());
+    println!("  - {}/.schema_snapshot.json\n", dir.display());
+
+    Ok(())
+}
+

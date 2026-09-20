@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 var versionRegex = regexp.MustCompile(`^(\d+)(?:_(.+))?\.sql$`)
@@ -211,3 +212,117 @@ func getAppliedVersions(ctx context.Context, db *sql.DB) (map[string]bool, error
 	}
 	return applied, rows.Err()
 }
+
+// SyncDB synchronizes the database schema against a DrawDB schema file.
+// It automatically detects the difference between the DrawDB schema and the existing snapshot,
+// translates the diff into the configured database dialect (PostgreSQL by default, MySQL, or SQLite),
+// executes the DDL transactionally, updates the schema_migrations tracking table, updates the snapshot,
+// and optionally saves an audit migration file in migrationsDir.
+func SyncDB(ctx context.Context, db *sql.DB, opts SyncOptions) (*SyncResult, error) {
+	if opts.MigrationsDir == "" {
+		opts.MigrationsDir = "./migrations"
+	}
+	if opts.SchemaPath == "" {
+		opts.SchemaPath = filepath.Join("schema", "drawdb.json")
+	}
+	if opts.Dialect == "" {
+		opts.Dialect = DialectPostgres
+	}
+	if opts.MigrationName == "" {
+		opts.MigrationName = "sync_drawdb"
+	}
+
+	// Auto-create directories if missing
+	schemaDir := filepath.Dir(opts.SchemaPath)
+	if err := os.MkdirAll(schemaDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create schema directory %s: %w", schemaDir, err)
+	}
+	if err := os.MkdirAll(opts.MigrationsDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create migrations directory %s: %w", opts.MigrationsDir, err)
+	}
+
+	m := NewMigrator(opts.MigrationsDir)
+	if m == nil {
+		return nil, fmt.Errorf("failed to initialize migradb engine")
+	}
+	defer m.Close()
+
+	plan, err := m.PlanSyncDrawDB(opts.SchemaPath, opts.Dialect, opts.ForceFull)
+	if err != nil {
+		return &SyncResult{Success: false, Error: err.Error()}, err
+	}
+
+	if plan.IsEmpty || len(plan.Statements) == 0 {
+		return &SyncResult{
+			Success:     true,
+			IsEmpty:     true,
+			Applied:     0,
+			DiffSummary: plan.DiffSummary,
+		}, nil
+	}
+
+	if err := initSchemaTable(ctx, db); err != nil {
+		return &SyncResult{Success: false, Error: err.Error()}, err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return &SyncResult{Success: false, Error: err.Error()}, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	for _, stmt := range plan.Statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			_ = tx.Rollback()
+			return &SyncResult{
+				Success:     false,
+				DiffSummary: plan.DiffSummary,
+				Error:       fmt.Sprintf("failed to execute statement '%s': %v", stmt, err),
+			}, err
+		}
+	}
+
+	// Record version in schema_migrations
+	version := time.Now().UTC().Format("20060102150405")
+	recordSQL := fmt.Sprintf("INSERT INTO schema_migrations (version) VALUES ('%s');", version)
+	if _, err := tx.ExecContext(ctx, recordSQL); err != nil {
+		_ = tx.Rollback()
+		return &SyncResult{
+			Success:     false,
+			DiffSummary: plan.DiffSummary,
+			Error:       fmt.Sprintf("failed to record migration version %s: %v", version, err),
+		}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return &SyncResult{Success: false, Error: err.Error()}, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	var migPath string
+	if opts.SaveMigrationFile {
+		diffRes, err := m.DiffDrawDB(opts.SchemaPath, opts.MigrationName, opts.Dialect, opts.ForceFull)
+		if err == nil && diffRes != nil {
+			migPath = diffRes.MigrationPath
+		}
+	} else {
+		// Update snapshot files directly
+		schemaBytes, err := os.ReadFile(opts.SchemaPath)
+		if err == nil {
+			_ = os.WriteFile(filepath.Join(schemaDir, "drawdb_snapshot.json"), schemaBytes, 0644)
+			_ = os.WriteFile(filepath.Join(opts.MigrationsDir, ".schema_snapshot.json"), schemaBytes, 0644)
+		}
+	}
+
+	return &SyncResult{
+		Success:       true,
+		IsEmpty:       false,
+		Applied:       len(plan.Statements),
+		DiffSummary:   plan.DiffSummary,
+		MigrationPath: migPath,
+		Statements:    plan.Statements,
+	}, nil
+}
+

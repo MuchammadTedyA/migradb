@@ -21,6 +21,15 @@ MigrDB provides a unified, cross-platform solution for managing SQL database mig
 
 The library adheres to timestamp-based versioning (`YYYYMMDDHHmmss_slug.sql`), immutable migration history, and strict transactional safety.
 
+## Universal Schema Sync (Approach 1)
+
+MigrDB provides a **Universal Schema Sync Engine** designed around visual database modeling:
+- **Design Once in DrawDB**: Place your exported diagram at `./schema/drawdb.json`.
+- **Automatic Directory Conventions**: MigraDB automatically creates `./schema` and `./migrations` in your project root if they do not exist, or seamlessly uses existing and custom paths.
+- **PostgreSQL Default + MySQL & SQLite**: Translates visual schema diffs into dialect-accurate DDL statements on the fly.
+- **Zero Migration Regeneration**: Switching databases midway (e.g. SQLite in development to PostgreSQL/MySQL in production) requires **zero migration regeneration** because schema synchronization generates dialect-specific DDL dynamically at runtime.
+- **Automatic Audit Trail**: Saves immutable audit migrations (`./migrations/YYYYMMDDHHmmss_sync_drawdb.sql`) and maintains snapshots (`./schema/drawdb_snapshot.json`).
+
 ## Quick Start
 
 ### Go
@@ -41,19 +50,24 @@ import (
 func main() {
     ctx := context.Background()
 
-    // 1. Connect to PostgreSQL
+    // 1. Connect to database
     db, err := sql.Open("postgres", "postgres://postgres:secret@localhost:5432/myapp?sslmode=disable")
     if err != nil {
         log.Fatal(err)
     }
     defer db.Close()
 
-    // 2. Run migrations directly on PostgreSQL in atomic transactions
-    result, err := migration.RunDB(ctx, db, "./migrations")
+    // 2. Synchronize database directly against DrawDB schema (Auto-creates schema & migrations dirs)
+    syncRes, err := migration.SyncDB(ctx, db, migration.SyncOptions{
+        SchemaPath:        "./schema/drawdb.json",
+        MigrationsDir:     "./migrations",
+        Dialect:           migration.DialectPostgres, // or DialectMySQL, DialectSQLite
+        SaveMigrationFile: true,
+    })
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Printf("Applied %d migrations\n", result.Applied)
+    fmt.Printf("Sync completed: %d statements applied\n", syncRes.Applied)
 
     // 3. Generate Go model structs from DrawDB schema
     m := migration.NewMigrator("./migrations")
@@ -66,15 +80,20 @@ func main() {
 
 ```javascript
 const { Client } = require('pg');
-const { runOnDatabase, generateModels } = require('migradb');
+const { syncDatabase, generateModels } = require('migradb');
 
 async function main() {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
 
-    // 1. Run migrations directly on PostgreSQL
-    const result = await runOnDatabase(client, './migrations');
-    console.log(`Applied ${result.applied} migrations`);
+    // 1. Synchronize database directly against DrawDB schema
+    const syncRes = await syncDatabase(client, {
+        schema: './schema/drawdb.json',
+        migrationsDir: './migrations',
+        schemaDir: './schema',
+        saveMigrationFile: true,
+    });
+    console.log(`Sync completed: ${syncRes.applied} statements applied`);
 
     await client.end();
 
@@ -89,12 +108,18 @@ main().catch(console.error);
 
 ```python
 import psycopg2
-from migradb import run_on_connection, generate_models
+from migradb import sync_database, generate_models
 
-# 1. Run migrations directly on PostgreSQL connection
+# 1. Synchronize database directly against DrawDB schema
 conn = psycopg2.connect("dbname=myapp user=postgres password=secret host=localhost")
-result = run_on_connection(conn, "./migrations")
-print(f"Applied {result.applied} migrations")
+sync_res = sync_database(
+    conn=conn,
+    schema="./schema/drawdb.json",
+    migrations_dir="./migrations",
+    schema_dir="./schema",
+    save_migration_file=True,
+)
+print(f"Sync completed: {sync_res.applied} statements applied")
 conn.close()
 
 # 2. Generate SQLAlchemy 2.0 models from DrawDB diagram

@@ -34,9 +34,49 @@ pnpm add migradb
 
 ## Quick Start
 
-MigraDB provides both direct database runners (`runOnDatabase`, `statusOnDatabase`) for real database connections, and a native in-memory core `Migrator`.
+### 1. Universal Schema Sync (`syncDatabase`) - Recommended
 
-### 1. Running Migrations on a Real Database (Recommended)
+Design your database schema visually in DrawDB, export the JSON to `./schema/drawdb.json`, and let MigraDB dynamically synchronize your live database:
+
+```javascript
+const { Client } = require('pg');
+const { syncDatabase } = require('migradb');
+
+async function main() {
+    const client = new Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+
+    // Synchronize schema against drawdb.json
+    const res = await syncDatabase(client, {
+        schema: './schema/drawdb.json',    // Default schema path
+        migrationsDir: './migrations',     // Auto-created if missing
+        schemaDir: './schema',             // Auto-created if missing
+        saveMigrationFile: true,           // Generates audit .sql migration
+        migrationName: 'sync_schema',      // Migration slug
+    });
+
+    if (res.isEmpty) {
+        console.log('✅ Schema is already up to date.');
+    } else if (res.success) {
+        console.log(`✅ Applied ${res.applied} statements! Audit file: ${res.migrationPath}`);
+    } else {
+        console.error('❌ Sync failed:', res.error);
+    }
+
+    await client.end();
+}
+
+main();
+```
+
+#### Why Approach 1?
+- **Zero Migration Regeneration**: If you change your database midway (e.g. SQLite during local development -> PostgreSQL or MySQL in production), **you do not need to rewrite or regenerate any migrations**. Simply change your database connection or specify `dialect: 'mysql' | 'postgres' | 'sqlite'`, and MigraDB translates the schema diff into the correct DDL dialect on the fly!
+- **Auto Directory Conventions**: Automatically creates `./schema` and `./migrations` in the root project if they do not exist. If they already exist, files are placed directly inside.
+- **Dialect Defaults**: Defaults to **PostgreSQL**. MySQL and SQLite are fully supported.
+- **Audit Logging**: Automatically writes timestamped audit migrations (`migrations/YYYYMMDDHHmmss_sync_drawdb.sql`) and maintains snapshots (`schema/drawdb_snapshot.json`).
+
+### 2. Running Manual Migration Files (`runOnDatabase`)
+
 
 #### PostgreSQL (`pg`)
 ```javascript

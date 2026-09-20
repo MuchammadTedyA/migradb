@@ -53,7 +53,7 @@ function loadNativeBinding() {
 }
 
 const native = loadNativeBinding();
-const { runOnDatabase, statusOnDatabase } = require('./runner');
+const { runOnDatabase, statusOnDatabase, syncDatabase, detectDialect } = require('./runner');
 
 module.exports = {
   Migrator: native.Migrator,
@@ -64,7 +64,15 @@ module.exports = {
   CreateResult: native.CreateResult,
   RemoveResult: native.RemoveResult,
   GenerateResult: native.GenerateResult,
+  DiffResult: native.DiffResult,
+  SyncPlan: native.SyncPlan,
   generateModels: native.generateModels,
+  diffDrawDB: native.diffDrawdb,
+  diffDrawdb: native.diffDrawdb,
+  planSyncDrawDB: native.planSyncDrawdb,
+  planSyncDrawdb: native.planSyncDrawdb,
   runOnDatabase,
   statusOnDatabase,
+  syncDatabase,
+  detectDialect,
 };

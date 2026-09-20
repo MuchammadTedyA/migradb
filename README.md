@@ -48,11 +48,14 @@ A high-performance SQL database migration and schema modeling library built with
 
 ## Features
 
+- **Universal Schema Sync & Auto-Migration** - Define schema visually in DrawDB (`drawdb.json`); MigraDB dynamically synchronizes live databases across **PostgreSQL (default)**, **MySQL**, and **SQLite** with transactional execution and automatic snapshot tracking.
+- **Zero-Regeneration Database Switching** - Switching databases midway (e.g. SQLite in development to PostgreSQL/MySQL in production) requires **zero migration file regeneration**—MigraDB translates schema diffs into dialect-accurate DDL on the fly.
+- **Automatic Directory Conventions & Customization** - Defaults to `./schema` and `./migrations` at the project root; automatically creates them if missing, or seamlessly adopts existing folders and custom paths.
 - **Timestamp-based versioning** - Strict `YYYYMMDDHHmmss_slug.sql` chronological ordering
 - **Transactional safety** - Each migration executes within an atomic transaction
 - **Immutable history** - Never edit old migrations; create new migrations to roll forward or reverse changes
 - **Idempotent SQL** - Native support for `IF NOT EXISTS` / `IF EXISTS` schema guards
-- **Standalone CLI Tool** - Native `migradb` binary for running migrations, inspecting status, and generating code without language dependencies
+- **Standalone CLI Tool** - Native `migradb` binary for running migrations, inspecting status, diffing schemas, and generating code without language dependencies
 - **Ecosystem-aware Model Class Generation** - Entity Developer / EF Core-style code generation directly from DrawDB JSON schemas:
   - **Go**: Structs with `json` and `db` struct tags, pointer types for nullable columns, and relation navigation fields
   - **Node.js / TypeScript**: Clean TypeScript interfaces and classes with `Date`, `number`, and `string` mappings plus barrel exports (`index.ts`)
@@ -61,15 +64,16 @@ A high-performance SQL database migration and schema modeling library built with
   - **Rust**: Serde-serializable structs with `Option<T>` for nullables and `sqlx::FromRow` derivation
   - **SQL DDL**: Complete `CREATE TABLE` scripts with constraints and foreign keys for PostgreSQL, MySQL, and SQLite
 - **Direct Database Execution Helpers** - 1-line transaction-safe runners for live databases:
-  - **Go**: `RunDB(ctx, db, "./migrations")` with standard `*sql.DB`
-  - **Node.js**: `runOnDatabase(client, "./migrations")` with `pg`, `mysql2`, or `better-sqlite3`
-  - **Python**: `run_on_connection(conn, "./migrations")` with standard DB-API 2.0 or SQLite
+  - **Go**: `RunDB(ctx, db, "./migrations")` and `SyncDB(ctx, db, opts)` with standard `*sql.DB`
+  - **Node.js**: `runOnDatabase(client, "./migrations")` and `syncDatabase(client, opts)` with `pg`, `mysql2`, or `better-sqlite3`
+  - **Python**: `run_on_connection(conn, "./migrations")` and `sync_database(conn, ...)` with standard DB-API 2.0 or SQLite
 - **DrawDB Schema Integration** - Direct ingestion of DrawDB JSON diagrams with automatic table prefix stripping (`m_`, `t_`, `sys_`, `map_`), singularization, and 1-to-many relationship mapping
 - **Zero-CGO on Windows** - Go bindings load `migration_engine.dll` dynamically via `syscall.NewLazyDLL` without requiring GCC, MinGW, or CGO tooling
 - **Multi-language support** - Bindings for Go, Node.js (via napi-rs), and Python (via PyO3) powered by a single compiled Rust core
 - **Schema tracking** - Automatic `schema_migrations` audit table management
 
 ---
+
 
 ## Installation & Quick Start
 
@@ -205,6 +209,203 @@ generate_models("schema/drawdb.json", "python", "./app/models.py")
 
 ---
 
+## Universal Schema Sync & Auto-Migration (Zero Regeneration)
+
+MigraDB features a universal runtime synchronization engine (**Approach 1**). You design your database schema visually once in [DrawDB](https://drawdb.app) and save the JSON export in `./schema/drawdb.json`. At application startup or deployment, MigraDB dynamically translates schema diffs into the target database dialect and applies them safely inside an atomic transaction.
+
+### How It Works
+
+```
+┌────────────────────────┐
+│   schema/drawdb.json   │  (Single Source of Truth)
+└───────────┬────────────┘
+            │
+            ▼
+┌────────────────────────┐
+│  MigraDB Engine Diff   │◄──── Compares against:
+└───────────┬────────────┘      • schema/drawdb_snapshot.json
+            │                   • migrations/.schema_snapshot.json
+            │
+            ├───────────────┬───────────────┐
+            ▼               ▼               ▼
+     [PostgreSQL]        [MySQL]        [SQLite]
+      (Default)
+            │               │               │
+            └───────────────┼───────────────┘
+                            │
+                            ▼
+          ┌──────────────────────────────────┐
+          │  Atomic Database Transaction     │
+          │  - Executes dialect-specific DDL │
+          │  - Records schema_migrations     │
+          │  - Saves audit .sql migration    │
+          │  - Updates snapshots             │
+          └──────────────────────────────────┘
+```
+
+### Key Capabilities
+
+1. **PostgreSQL Default with Full MySQL & SQLite Support**:
+   - Dialect is **PostgreSQL** by default if unspecified.
+   - MySQL (using backtick escaping, `MODIFY COLUMN`, and `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`) and SQLite (using portable table/column alterations) are fully supported first-class dialects.
+2. **Switching Databases Midway Requires ZERO Migration Regeneration**:
+   - If you start development with SQLite and later switch midway to MySQL or PostgreSQL in production, **you do not need to rewrite or regenerate migrations**.
+   - Simply point your application to the new database; MigraDB evaluates the schema against the target database and generates the exact DDL statements required for that engine on the fly.
+3. **Folder Auto-Creation & Customization**:
+   - By default, MigraDB checks for `./schema` and `./migrations` in your project root. If either folder does not exist, MigraDB automatically creates it. If it already exists, files are placed cleanly inside.
+   - Custom directories can be specified at any time (`migrations_dir`, `schema_dir`, `--dir`, `--schema-dir`).
+4. **Audit Trail & Snapshot Integrity**:
+   - Every synchronization saves an immutable timestamped audit migration (`migrations/YYYYMMDDHHmmss_sync_drawdb.sql`) and maintains snapshots (`schema/drawdb_snapshot.json` and `migrations/.schema_snapshot.json`) to track state across team members and CI/CD pipelines.
+
+---
+
+### Usage: Go (`SyncDB`)
+
+```go
+package main
+
+import (
+    "context"
+    "database/sql"
+    "fmt"
+    "log"
+
+    _ "github.com/lib/pq" // or github.com/go-sql-driver/mysql or modernc.org/sqlite
+    migration "github.com/MuchammadTedyA/migradb/go"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 1. Connect to your database (PostgreSQL, MySQL, or SQLite)
+    db, err := sql.Open("postgres", "postgres://postgres:secret@localhost:5432/myapp?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // 2. Synchronize schema directly from drawdb.json
+    res, err := migration.SyncDB(ctx, db, migration.SyncOptions{
+        SchemaPath:        "./schema/drawdb.json", // Default schema file
+        MigrationsDir:     "./migrations",        // Auto-created if missing
+        Dialect:           migration.DialectPostgres, // "postgres" (default), "mysql", or "sqlite"
+        SaveMigrationFile: true,                  // Generates audit .sql migration
+        MigrationName:     "sync_schema",         // Name slug for audit migration
+    })
+    if err != nil {
+        log.Fatalf("Sync failed: %v", err)
+    }
+
+    if res.IsEmpty {
+        fmt.Println("Database schema is already up to date!")
+    } else {
+        fmt.Printf("Successfully applied %d DDL statement(s)!\n", res.Applied)
+        fmt.Printf("Audit migration saved: %s\n", res.MigrationPath)
+    }
+}
+```
+
+---
+
+### Usage: Node.js (`syncDatabase`)
+
+```javascript
+const { Client } = require('pg'); // or require('mysql2/promise') or require('better-sqlite3')
+const { syncDatabase, detectDialect } = require('migradb');
+
+async function main() {
+    const client = new Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+
+    // Synchronize schema against drawdb.json
+    const res = await syncDatabase(client, {
+        schema: './schema/drawdb.json',         // Default schema file
+        migrationsDir: './migrations',         // Auto-created if missing
+        schemaDir: './schema',                 // Auto-created if missing
+        // dialect: 'postgres',                // Auto-detected or explicitly: 'postgres', 'mysql', 'sqlite'
+        saveMigrationFile: true,               // Generates audit .sql migration
+        migrationName: 'sync_schema',          // Name slug for audit migration
+    });
+
+    if (res.isEmpty) {
+        console.log('Database schema is already up to date!');
+    } else if (res.success) {
+        console.log(`Applied ${res.applied} DDL statement(s)!`);
+        console.log(`Audit migration: ${res.migrationPath}`);
+    } else {
+        console.error(`Sync error: ${res.error}`);
+    }
+
+    await client.end();
+}
+
+main().catch(console.error);
+```
+
+---
+
+### Usage: Python (`sync_database`)
+
+```python
+import psycopg2 # or pymysql or sqlite3
+from migradb import sync_database, detect_dialect
+
+conn = psycopg2.connect("dbname=myapp user=postgres password=secret host=localhost")
+
+# Synchronize schema against drawdb.json
+res = sync_database(
+    conn=conn,
+    schema="./schema/drawdb.json",         # Default schema file
+    migrations_dir="./migrations",         # Auto-created if missing
+    schema_dir="./schema",                 # Auto-created if missing
+    # dialect="postgres",                  # Auto-detected or explicitly: 'postgres', 'mysql', 'sqlite'
+    save_migration_file=True,              # Generates audit .sql migration
+    migration_name="sync_schema",          # Name slug for audit migration
+)
+
+if res.is_empty:
+    print("Database schema is already up to date!")
+elif res.success:
+    print(f"Applied {res.applied} DDL statement(s)!")
+    print(f"Audit migration: {res.migration_path}")
+else:
+    print(f"Sync error: {res.error}")
+
+conn.close()
+```
+
+---
+
+### CLI Incremental Diffing (`migradb diff`)
+
+You can generate incremental SQL migrations from your DrawDB visual schema at any time using the CLI:
+
+```bash
+# PostgreSQL (default)
+migradb diff --schema ./schema/drawdb.json --name add_user_profiles
+
+# MySQL
+migradb diff --schema ./schema/drawdb.json --name add_user_profiles --dialect mysql
+
+# SQLite
+migradb diff --schema ./schema/drawdb.json --name add_user_profiles --dialect sqlite
+
+# Specify custom directories
+migradb diff --schema ./custom/drawdb.json --dir ./custom_migrations --schema-dir ./custom_schema
+
+# Force full baseline regeneration
+migradb diff --schema ./schema/drawdb.json --full
+```
+
+With Node.js / `npx`:
+```bash
+npx migradb diff --schema ./schema/drawdb.json --dialect postgres
+npx migradb diff --schema ./schema/drawdb.json --dialect mysql
+```
+
+---
+
+
 ## Migration File Format
 
 Migration files follow the naming convention `<timestamp>_<slug>.sql`:
@@ -305,12 +506,17 @@ npx migradb generate --schema drawdb.json --lang node --out ./src/models
 Transaction-safe 1-line execution helpers for live databases:
 
 - **Node.js**:
+  - `syncDatabase(client, options)`: Dynamically syncs database against DrawDB visual schema with multi-dialect DDL translation. Returns `Promise<SyncResult>`.
+  - `detectDialect(client)`: Helper that infers `'postgres'`, `'mysql'`, or `'sqlite'` from database client object.
   - `runOnDatabase(client, migrationsDir)`: Runs pending migrations in transaction. Supports `pg`, `mysql2`, `better-sqlite3`. Returns `Promise<RunResult>`.
   - `statusOnDatabase(client, migrationsDir)`: Queries migration history. Returns `Promise<StatusResult>`.
 - **Python**:
+  - `sync_database(conn, ...)`: Dynamically syncs database against DrawDB visual schema with multi-dialect DDL translation. Returns `ResultDict`.
+  - `detect_dialect(conn)`: Helper that infers `'postgres'`, `'mysql'`, or `'sqlite'` from DB-API 2.0 connection.
   - `run_on_connection(conn, migrations_dir)`: Runs pending migrations in transaction. Supports standard DB-API 2.0 (`psycopg2`, `sqlite3`, `pymysql`). Returns `RunResult`.
   - `status_on_connection(conn, migrations_dir)`: Queries migration history. Returns `StatusResult`.
 - **Go**:
+  - `SyncDB(ctx, db, opts)`: Dynamically syncs database against DrawDB visual schema with multi-dialect DDL translation. Returns `(*SyncResult, error)`.
   - `RunDB(ctx, db, migrationsDir)`: Runs pending migrations using standard `*sql.DB`. Returns `(*RunResult, error)`.
   - `StatusDB(ctx, db, migrationsDir)`: Queries migration history. Returns `(*StatusResult, error)`.
 

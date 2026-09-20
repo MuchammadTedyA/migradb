@@ -34,9 +34,46 @@ pipenv install migradb
 
 ## Quick Start
 
-### 1. Running Migrations on a Real Database (Recommended)
+### 1. Universal Schema Sync (`sync_database`) - Recommended
+
+Design your database schema visually in DrawDB, export the JSON to `./schema/drawdb.json`, and let MigraDB dynamically synchronize your live database:
+
+```python
+import psycopg2
+from migradb import sync_database
+
+conn = psycopg2.connect("dbname=mydb user=postgres password=secret host=localhost")
+
+# Synchronize schema against drawdb.json
+res = sync_database(
+    conn=conn,
+    schema="./schema/drawdb.json",    # Default schema path
+    migrations_dir="./migrations",     # Auto-created if missing
+    schema_dir="./schema",             # Auto-created if missing
+    save_migration_file=True,          # Generates audit .sql migration
+    migration_name="sync_schema",      # Migration slug
+)
+
+if res.is_empty:
+    print("✅ Schema is already up to date.")
+elif res.success:
+    print(f"✅ Applied {res.applied} statements! Audit file: {res.migration_path}")
+else:
+    print(f"❌ Sync failed: {res.error}")
+
+conn.close()
+```
+
+#### Why Approach 1?
+- **Zero Migration Regeneration**: If you change your database midway (e.g. SQLite during local development -> PostgreSQL or MySQL in production), **you do not need to rewrite or regenerate any migrations**. Simply connect to the new database, and MigraDB translates the schema diff into the correct DDL dialect on the fly!
+- **Auto Directory Conventions**: Automatically creates `./schema` and `./migrations` in the root project if they do not exist. If they already exist, files are placed directly inside.
+- **Dialect Defaults**: Defaults to **PostgreSQL**. MySQL and SQLite are fully supported (specify via `dialect="mysql"` / `"postgres"` / `"sqlite"` or let MigraDB auto-detect from connection).
+- **Audit Logging**: Automatically writes timestamped audit migrations (`migrations/YYYYMMDDHHmmss_sync_drawdb.sql`) and maintains snapshots (`schema/drawdb_snapshot.json`).
+
+### 2. Running Manual Migration Files (`run_on_connection`)
 
 MigraDB works with any standard Python DB-API 2.0 connection (`sqlite3`, `psycopg2`, `pymysql`):
+
 
 ```python
 import psycopg2

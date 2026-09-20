@@ -56,11 +56,64 @@ go mod tidy
 
 ## Quick Start
 
-MigraDB provides both **direct database runners** (`RunDB`, `StatusDB`) for executing migrations against standard Go `*sql.DB` connections, and the **core `Migrator`** for file management and DrawDB model generation.
+### 1. Universal Schema Sync (`SyncDB`) - Recommended
 
-### 1. Running Migrations on a Real Database (Recommended)
+Design your database schema visually in DrawDB, export the JSON to `./schema/drawdb.json`, and let MigraDB dynamically synchronize your live database:
+
+```go
+package main
+
+import (
+    "context"
+    "database/sql"
+    "fmt"
+    "log"
+
+    _ "github.com/lib/pq" // or github.com/go-sql-driver/mysql or modernc.org/sqlite
+    migration "github.com/MuchammadTedyA/migradb/go"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 1. Open database connection (PostgreSQL, MySQL, or SQLite)
+    db, err := sql.Open("postgres", "postgres://postgres:secret@localhost:5432/myapp?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // 2. Synchronize database schema directly from drawdb.json
+    res, err := migration.SyncDB(ctx, db, migration.SyncOptions{
+        SchemaPath:        "./schema/drawdb.json",     // Default schema file
+        MigrationsDir:     "./migrations",            // Auto-created if missing
+        Dialect:           migration.DialectPostgres, // "postgres" (default), "mysql", or "sqlite"
+        SaveMigrationFile: true,                      // Save audit .sql migration
+        MigrationName:     "sync_schema",             // Migration slug
+    })
+    if err != nil {
+        log.Fatalf("Sync failed: %v", err)
+    }
+
+    if res.IsEmpty {
+        fmt.Println("✅ Schema is already up to date!")
+    } else {
+        fmt.Printf("✅ Applied %d DDL statement(s)!\n", res.Applied)
+        fmt.Printf("   Audit migration saved: %s\n", res.MigrationPath)
+    }
+}
+```
+
+#### Why Approach 1?
+- **Zero Migration Regeneration**: If you change your database midway (e.g. SQLite during local development -> PostgreSQL or MySQL in production), **you do not need to rewrite or regenerate any migrations**. Simply change your database driver and connection; MigraDB evaluates the schema against the target database and generates the exact DDL statements required for that engine on the fly.
+- **Auto Directory Conventions**: Automatically creates `./schema` and `./migrations` in the root project if they do not exist. If they already exist, files are placed directly inside.
+- **Dialect Defaults**: Defaults to **PostgreSQL**. MySQL and SQLite are fully supported via `opts.Dialect` (`DialectPostgres`, `DialectMySQL`, `DialectSQLite`).
+- **Audit Logging**: Automatically writes timestamped audit migrations (`migrations/YYYYMMDDHHmmss_sync_drawdb.sql`) and maintains snapshots (`schema/drawdb_snapshot.json`).
+
+### 2. Running Manual Migration Files (`RunDB`)
 
 Works with any standard Go SQL driver (PostgreSQL via `lib/pq` or `pgx/stdlib`, MySQL via `go-sql-driver/mysql`, SQLite via `go-sqlite3`):
+
 
 ```go
 package main
