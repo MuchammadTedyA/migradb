@@ -17,6 +17,7 @@ pub struct MigrationStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MigratorConfig {
     pub migrations_dir: PathBuf,
+    pub schema_dir: PathBuf,
     pub auto_migrate: bool,
 }
 
@@ -24,6 +25,7 @@ impl Default for MigratorConfig {
     fn default() -> Self {
         Self {
             migrations_dir: PathBuf::from("./migrations"),
+            schema_dir: PathBuf::from("./schema"),
             auto_migrate: true,
         }
     }
@@ -160,15 +162,25 @@ impl Migrator {
         dialect: Option<&str>,
         force_full: bool,
     ) -> Result<crate::codegen::DiffResult> {
-        let schema_p = schema_path.as_ref();
-        let schema_dir = schema_p
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("schema"));
+        self.diff_drawdb_with_schema_dir(schema_path, None::<&Path>, migration_name, dialect, force_full)
+    }
+
+    pub fn diff_drawdb_with_schema_dir<P: AsRef<Path>, Q: AsRef<Path>>(
+        &self,
+        schema_path: P,
+        schema_dir: Option<Q>,
+        migration_name: &str,
+        dialect: Option<&str>,
+        force_full: bool,
+    ) -> Result<crate::codegen::DiffResult> {
+        let sch_dir = match &schema_dir {
+            Some(d) => d.as_ref().to_path_buf(),
+            None => self.config.schema_dir.clone(),
+        };
         crate::codegen::diff_drawdb(
-            schema_p,
+            schema_path,
             &self.config.migrations_dir,
-            schema_dir,
+            &sch_dir,
             migration_name,
             dialect,
             force_full,
@@ -181,15 +193,24 @@ impl Migrator {
         dialect: Option<&str>,
         force_full: bool,
     ) -> Result<crate::codegen::SyncPlan> {
-        let schema_p = schema_path.as_ref();
-        let schema_dir = schema_p
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("schema"));
+        self.plan_sync_drawdb_with_schema_dir(schema_path, None::<&Path>, dialect, force_full)
+    }
+
+    pub fn plan_sync_drawdb_with_schema_dir<P: AsRef<Path>, Q: AsRef<Path>>(
+        &self,
+        schema_path: P,
+        schema_dir: Option<Q>,
+        dialect: Option<&str>,
+        force_full: bool,
+    ) -> Result<crate::codegen::SyncPlan> {
+        let sch_dir = match &schema_dir {
+            Some(d) => d.as_ref().to_path_buf(),
+            None => self.config.schema_dir.clone(),
+        };
         crate::codegen::plan_sync_drawdb(
-            schema_p,
+            schema_path,
             &self.config.migrations_dir,
-            schema_dir,
+            &sch_dir,
             dialect,
             force_full,
         )
@@ -229,6 +250,11 @@ impl MigratorBuilder {
 
     pub fn migrations_dir<P: AsRef<Path>>(mut self, dir: P) -> Self {
         self.config.migrations_dir = dir.as_ref().to_path_buf();
+        self
+    }
+
+    pub fn schema_dir<P: AsRef<Path>>(mut self, dir: P) -> Self {
+        self.config.schema_dir = dir.as_ref().to_path_buf();
         self
     }
 

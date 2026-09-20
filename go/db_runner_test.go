@@ -58,7 +58,7 @@ type memStmt struct {
 	query string
 }
 
-func (s *memStmt) Close() error { return nil }
+func (s *memStmt) Close() error  { return nil }
 func (s *memStmt) NumInput() int { return -1 }
 
 func (s *memStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -200,9 +200,13 @@ func TestSyncDB(t *testing.T) {
 		t.Skip("schema/drawdb.json not found, skipping sync test")
 	}
 
+	schemaDir := filepath.Join(tempDir, "schema")
+	migrationsDir := filepath.Join(tempDir, "migrations")
+
 	opts := SyncOptions{
 		SchemaPath:        schemaPath,
-		MigrationsDir:     filepath.Join(tempDir, "migrations"),
+		MigrationsDir:     migrationsDir,
+		SchemaDir:         schemaDir,
 		Dialect:           DialectPostgres,
 		SaveMigrationFile: true,
 		MigrationName:     "init_sync",
@@ -217,6 +221,16 @@ func TestSyncDB(t *testing.T) {
 		t.Fatalf("Expected initial sync to apply statements, got success=%v, applied=%d, empty=%v", res.Success, res.Applied, res.IsEmpty)
 	}
 
+	// Verify both snapshots exist
+	schemaSnap := filepath.Join(schemaDir, "drawdb_snapshot.json")
+	migSnap := filepath.Join(migrationsDir, ".schema_snapshot.json")
+	if _, err := os.Stat(schemaSnap); err != nil {
+		t.Fatalf("Expected schema snapshot at %s: %v", schemaSnap, err)
+	}
+	if _, err := os.Stat(migSnap); err != nil {
+		t.Fatalf("Expected migrations snapshot at %s: %v", migSnap, err)
+	}
+
 	// 2. Second sync - should be empty (no changes)
 	res2, err := SyncDB(ctx, db, opts)
 	if err != nil {
@@ -226,4 +240,3 @@ func TestSyncDB(t *testing.T) {
 		t.Fatalf("Expected second sync to be empty, got success=%v, applied=%d, empty=%v", res2.Success, res2.Applied, res2.IsEmpty)
 	}
 }
-

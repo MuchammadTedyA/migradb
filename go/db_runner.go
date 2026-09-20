@@ -233,7 +233,13 @@ func SyncDB(ctx context.Context, db *sql.DB, opts SyncOptions) (*SyncResult, err
 	}
 
 	// Auto-create directories if missing
-	schemaDir := filepath.Dir(opts.SchemaPath)
+	schemaDir := opts.SchemaDir
+	if schemaDir == "" {
+		schemaDir = filepath.Dir(opts.SchemaPath)
+		if schemaDir == "" || schemaDir == "." {
+			schemaDir = "./schema"
+		}
+	}
 	if err := os.MkdirAll(schemaDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create schema directory %s: %w", schemaDir, err)
 	}
@@ -241,7 +247,7 @@ func SyncDB(ctx context.Context, db *sql.DB, opts SyncOptions) (*SyncResult, err
 		return nil, fmt.Errorf("failed to create migrations directory %s: %w", opts.MigrationsDir, err)
 	}
 
-	m := NewMigrator(opts.MigrationsDir)
+	m := NewMigratorWithSchema(opts.MigrationsDir, schemaDir)
 	if m == nil {
 		return nil, fmt.Errorf("failed to initialize migradb engine")
 	}
@@ -307,13 +313,13 @@ func SyncDB(ctx context.Context, db *sql.DB, opts SyncOptions) (*SyncResult, err
 		if err == nil && diffRes != nil {
 			migPath = diffRes.MigrationPath
 		}
-	} else {
-		// Update snapshot files directly
-		schemaBytes, err := os.ReadFile(opts.SchemaPath)
-		if err == nil {
-			_ = os.WriteFile(filepath.Join(schemaDir, "drawdb_snapshot.json"), schemaBytes, 0644)
-			_ = os.WriteFile(filepath.Join(opts.MigrationsDir, ".schema_snapshot.json"), schemaBytes, 0644)
-		}
+	}
+
+	// Always ensure snapshot files are saved to both schemaDir and migrationsDir
+	schemaBytes, err := os.ReadFile(opts.SchemaPath)
+	if err == nil {
+		_ = os.WriteFile(filepath.Join(schemaDir, "drawdb_snapshot.json"), schemaBytes, 0644)
+		_ = os.WriteFile(filepath.Join(opts.MigrationsDir, ".schema_snapshot.json"), schemaBytes, 0644)
 	}
 
 	return &SyncResult{
@@ -325,4 +331,3 @@ func SyncDB(ctx context.Context, db *sql.DB, opts SyncOptions) (*SyncResult, err
 		Statements:    plan.Statements,
 	}, nil
 }
-

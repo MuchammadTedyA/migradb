@@ -14,6 +14,7 @@ import (
 var (
 	modMigrationEngine         *syscall.LazyDLL
 	procMigratorNew            *syscall.LazyProc
+	procMigratorNewWithSchema  *syscall.LazyProc
 	procMigratorFree           *syscall.LazyProc
 	procMigratorRun            *syscall.LazyProc
 	procMigratorStatus         *syscall.LazyProc
@@ -30,6 +31,7 @@ func init() {
 	modMigrationEngine = syscall.NewLazyDLL(dllPath)
 
 	procMigratorNew = modMigrationEngine.NewProc("migrator_new")
+	procMigratorNewWithSchema = modMigrationEngine.NewProc("migrator_new_with_schema")
 	procMigratorFree = modMigrationEngine.NewProc("migrator_free")
 	procMigratorRun = modMigrationEngine.NewProc("migrator_run")
 	procMigratorStatus = modMigrationEngine.NewProc("migrator_status")
@@ -83,13 +85,30 @@ func goString(ptr uintptr) string {
 }
 
 func NewMigrator(migrationsDir string) *Migrator {
+	return NewMigratorWithSchema(migrationsDir, "./schema")
+}
+
+func NewMigratorWithSchema(migrationsDir, schemaDir string) *Migrator {
+	if schemaDir == "" {
+		schemaDir = "./schema"
+	}
 	cDir := cString(migrationsDir)
-	handle, _, _ := procMigratorNew.Call(uintptr(unsafe.Pointer(cDir)))
+	cSchema := cString(schemaDir)
+	var handle uintptr
+	if procMigratorNewWithSchema != nil && procMigratorNewWithSchema.Find() == nil {
+		handle, _, _ = procMigratorNewWithSchema.Call(uintptr(unsafe.Pointer(cDir)), uintptr(unsafe.Pointer(cSchema)))
+	} else {
+		handle, _, _ = procMigratorNew.Call(uintptr(unsafe.Pointer(cDir)))
+	}
 	if handle == 0 {
 		return nil
 	}
 	ptrHandle := *(*unsafe.Pointer)(unsafe.Pointer(&handle))
-	return &Migrator{handle: ptrHandle}
+	return &Migrator{
+		handle:        ptrHandle,
+		MigrationsDir: migrationsDir,
+		SchemaDir:     schemaDir,
+	}
 }
 
 func (m *Migrator) Close() {
@@ -216,19 +235,32 @@ func boolToUintptr(b bool) uintptr {
 }
 
 func (m *Migrator) DiffDrawDB(schemaPath, name, dialect string, forceFull bool) (*DiffResult, error) {
+	return m.DiffDrawDBWithSchemaDir(schemaPath, m.SchemaDir, name, dialect, forceFull)
+}
+
+func (m *Migrator) DiffDrawDBWithSchemaDir(schemaPath, schemaDir, name, dialect string, forceFull bool) (*DiffResult, error) {
 	if dialect == "" {
 		dialect = "postgres"
 	}
 	if name == "" {
 		name = "sync_drawdb"
 	}
+	if schemaDir == "" {
+		if m.SchemaDir != "" {
+			schemaDir = m.SchemaDir
+		} else {
+			schemaDir = "./schema"
+		}
+	}
 	cSchema := cString(schemaPath)
+	cSchemaDir := cString(schemaDir)
 	cName := cString(name)
 	cDialect := cString(dialect)
 
 	r1, _, _ := procMigratorDiffDrawDB.Call(
 		uintptr(m.handle),
 		uintptr(unsafe.Pointer(cSchema)),
+		uintptr(unsafe.Pointer(cSchemaDir)),
 		uintptr(unsafe.Pointer(cName)),
 		uintptr(unsafe.Pointer(cDialect)),
 		boolToUintptr(forceFull),
@@ -250,15 +282,28 @@ func (m *Migrator) DiffDrawDB(schemaPath, name, dialect string, forceFull bool) 
 }
 
 func (m *Migrator) PlanSyncDrawDB(schemaPath, dialect string, forceFull bool) (*SyncPlan, error) {
+	return m.PlanSyncDrawDBWithSchemaDir(schemaPath, m.SchemaDir, dialect, forceFull)
+}
+
+func (m *Migrator) PlanSyncDrawDBWithSchemaDir(schemaPath, schemaDir, dialect string, forceFull bool) (*SyncPlan, error) {
 	if dialect == "" {
 		dialect = "postgres"
 	}
+	if schemaDir == "" {
+		if m.SchemaDir != "" {
+			schemaDir = m.SchemaDir
+		} else {
+			schemaDir = "./schema"
+		}
+	}
 	cSchema := cString(schemaPath)
+	cSchemaDir := cString(schemaDir)
 	cDialect := cString(dialect)
 
 	r1, _, _ := procMigratorPlanSyncDrawDB.Call(
 		uintptr(m.handle),
 		uintptr(unsafe.Pointer(cSchema)),
+		uintptr(unsafe.Pointer(cSchemaDir)),
 		uintptr(unsafe.Pointer(cDialect)),
 		boolToUintptr(forceFull),
 	)
@@ -279,11 +324,14 @@ func (m *Migrator) PlanSyncDrawDB(schemaPath, dialect string, forceFull bool) (*
 }
 
 func DiffDrawDB(schemaPath, migrationsDir, name, dialect string, forceFull bool) (*DiffResult, error) {
-	m := NewMigrator(migrationsDir)
+	return DiffDrawDBWithSchema(schemaPath, migrationsDir, "./schema", name, dialect, forceFull)
+}
+
+func DiffDrawDBWithSchema(schemaPath, migrationsDir, schemaDir, name, dialect string, forceFull bool) (*DiffResult, error) {
+	m := NewMigratorWithSchema(migrationsDir, schemaDir)
 	if m == nil {
 		return nil, fmt.Errorf("failed to initialize migradb engine")
 	}
 	defer m.Close()
-	return m.DiffDrawDB(schemaPath, name, dialect, forceFull)
+	return m.DiffDrawDBWithSchemaDir(schemaPath, schemaDir, name, dialect, forceFull)
 }
-

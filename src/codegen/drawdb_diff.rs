@@ -124,8 +124,6 @@ pub fn find_snapshot(migrations_dir: &Path, schema_dir: &Path) -> Option<PathBuf
         migrations_dir.join(".schema_snapshot.json"),
         schema_dir.join("drawdb_snapshot.json"),
         migrations_dir.join("schema_snapshot.json"),
-        PathBuf::from("schema").join("drawdb_snapshot.json"),
-        PathBuf::from("migrations").join(".schema_snapshot.json"),
     ];
 
     for c in &candidates {

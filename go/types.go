@@ -75,6 +75,7 @@ type SyncPlan struct {
 type SyncOptions struct {
 	SchemaPath        string
 	MigrationsDir     string
+	SchemaDir         string // Directory for schema snapshots (default: "./schema")
 	Dialect           string // "postgres", "mysql", "sqlite"
 	ForceFull         bool
 	SaveMigrationFile bool
@@ -92,5 +93,7 @@ type SyncResult struct {
 }
 
 type Migrator struct {
-	handle unsafe.Pointer
+	handle        unsafe.Pointer
+	MigrationsDir string
+	SchemaDir     string
 }

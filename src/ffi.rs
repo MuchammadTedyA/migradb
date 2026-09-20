@@ -30,6 +30,39 @@ pub extern "C" fn migrator_new(migrations_dir: *const c_char) -> *mut MigratorHa
 }
 
 #[no_mangle]
+pub extern "C" fn migrator_new_with_schema(
+    migrations_dir: *const c_char,
+    schema_dir: *const c_char,
+) -> *mut MigratorHandle {
+    if migrations_dir.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let dir_str = unsafe { CStr::from_ptr(migrations_dir) };
+    let dir_path = match dir_str.to_str() {
+        Ok(s) => PathBuf::from(s),
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let schema_path = if schema_dir.is_null() {
+        PathBuf::from("./schema")
+    } else {
+        match unsafe { CStr::from_ptr(schema_dir) }.to_str() {
+            Ok(s) if !s.is_empty() => PathBuf::from(s),
+            _ => PathBuf::from("./schema"),
+        }
+    };
+
+    let tracker = Arc::new(InMemoryTracker::new());
+    let migrator = MigratorBuilder::new()
+        .migrations_dir(dir_path)
+        .schema_dir(schema_path)
+        .build(tracker);
+
+    Box::into_raw(Box::new(MigratorHandle { migrator }))
+}
+
+#[no_mangle]
 pub extern "C" fn migrator_free(handle: *mut MigratorHandle) {
     if !handle.is_null() {
         unsafe {
@@ -236,6 +269,7 @@ pub extern "C" fn migrator_generate_models(
 pub extern "C" fn migrator_diff_drawdb(
     handle: *mut MigratorHandle,
     schema_path: *const c_char,
+    schema_dir: *const c_char,
     migration_name: *const c_char,
     dialect: *const c_char,
     force_full: bool,
@@ -248,6 +282,14 @@ pub extern "C" fn migrator_diff_drawdb(
     let schema_str = match unsafe { CStr::from_ptr(schema_path) }.to_str() {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
+    };
+    let schema_dir_opt = if schema_dir.is_null() {
+        None
+    } else {
+        match unsafe { CStr::from_ptr(schema_dir) }.to_str() {
+            Ok(s) if !s.is_empty() => Some(s),
+            _ => None,
+        }
     };
     let name_str = if migration_name.is_null() {
         "sync_drawdb"
@@ -266,7 +308,7 @@ pub extern "C" fn migrator_diff_drawdb(
         }
     };
 
-    match handle.migrator.diff_drawdb(schema_str, name_str, dialect_opt, force_full) {
+    match handle.migrator.diff_drawdb_with_schema_dir(schema_str, schema_dir_opt, name_str, dialect_opt, force_full) {
         Ok(res) => {
             let json = serde_json::json!({
                 "success": res.success,
@@ -295,6 +337,7 @@ pub extern "C" fn migrator_diff_drawdb(
 pub extern "C" fn migrator_plan_sync_drawdb(
     handle: *mut MigratorHandle,
     schema_path: *const c_char,
+    schema_dir: *const c_char,
     dialect: *const c_char,
     force_full: bool,
 ) -> *mut c_char {
@@ -307,6 +350,14 @@ pub extern "C" fn migrator_plan_sync_drawdb(
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
     };
+    let schema_dir_opt = if schema_dir.is_null() {
+        None
+    } else {
+        match unsafe { CStr::from_ptr(schema_dir) }.to_str() {
+            Ok(s) if !s.is_empty() => Some(s),
+            _ => None,
+        }
+    };
     let dialect_opt = if dialect.is_null() {
         None
     } else {
@@ -316,7 +367,7 @@ pub extern "C" fn migrator_plan_sync_drawdb(
         }
     };
 
-    match handle.migrator.plan_sync_drawdb(schema_str, dialect_opt, force_full) {
+    match handle.migrator.plan_sync_drawdb_with_schema_dir(schema_str, schema_dir_opt, dialect_opt, force_full) {
         Ok(res) => {
             let json = serde_json::json!({
                 "success": res.success,
