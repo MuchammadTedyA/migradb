@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "migradb"
-version = "0.1.1"
+version = "0.1.2"
 description = "MigrDB - SQL database migration library with Rust engine"
 readme = "README.md"
 license = { text = "MIT" }

@@ -38,7 +38,7 @@ except ImportError:
     )
 from .runner import run_on_connection, status_on_connection, sync_database, detect_dialect
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __all__ = [
     "Migrator",
     "Migration",
