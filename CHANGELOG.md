@@ -5,6 +5,21 @@ All notable changes to MigrDB will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-09-20
+
+### Added
+- **Universal Runtime Auto-Migration & Schema Sync Engine (Approach 1)**:
+  - Synchronizes database schemas directly from visual DrawDB diagrams (`drawdb.json`) at runtime without manual SQL migration authoring.
+  - Multi-dialect support: default **PostgreSQL**, with full **MySQL** and **SQLite** support.
+  - Zero migration regeneration required when switching databases between development and production.
+  - Snapshot persistence across `<schema_dir>/drawdb_snapshot.json` and `<migrations_dir>/.schema_snapshot.json`.
+  - Default project root folders `./migrations` and `./schema`, with support for custom directory overrides.
+  - Cross-language runtime support: Go (`SyncDB`), Node.js (`syncDatabase`), Python (`sync_database`), and CLI (`migradb diff`).
+
+### Fixed
+- Fixed snapshot resolution in `find_snapshot` to strictly inspect caller-specified migration and schema directories.
+- Added `schema_dir` support to Rust FFI, Go Zero-CGO Windows DLL, and CGO bindings.
+
 ## [0.1.1] - 2026-09-20
 
 ### Added

@@ -1,6 +1,6 @@
 # MigrDB
 
-[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A high-performance SQL database migration and schema modeling library built with a Rust core engine, providing native bindings for Go, Node.js (npm), and Python, alongside ecosystem-aware model generation for Go, TypeScript, Python (SQLAlchemy 2.0), and C# (EF Core).
