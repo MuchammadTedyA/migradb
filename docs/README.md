@@ -29,63 +29,76 @@ The library adheres to timestamp-based versioning (`YYYYMMDDHHmmss_slug.sql`), i
 package main
 
 import (
+    "context"
+    "database/sql"
     "fmt"
     "log"
 
+    _ "github.com/lib/pq"
     migration "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
-    // 1. Initialize migrator (uses Zero-CGO dynamic DLL loading on Windows)
-    m := migration.NewMigrator("./migrations")
-    if m == nil {
-        log.Fatal("Failed to initialize migrator")
-    }
-    defer m.Close()
+    ctx := context.Background()
 
-    // 2. Apply all pending migrations
-    result, err := m.Run()
+    // 1. Connect to PostgreSQL
+    db, err := sql.Open("postgres", "postgres://postgres:secret@localhost:5432/myapp?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // 2. Run migrations directly on PostgreSQL in atomic transactions
+    result, err := migration.RunDB(ctx, db, "./migrations")
     if err != nil {
         log.Fatal(err)
     }
     fmt.Printf("Applied %d migrations\n", result.Applied)
 
     // 3. Generate Go model structs from DrawDB schema
-    modelRes, err := m.GenerateModels("schema/drawdb.json", "go", "./internal/models", "models")
-    if err != nil {
-        log.Fatalf("Model generation failed: %v", err)
-    }
-    fmt.Printf("Generated %d Go model files\n", modelRes.Count)
+    m := migration.NewMigrator("./migrations")
+    defer m.Close()
+    m.GenerateModels("schema/drawdb.json", "go", "./internal/models", "models")
 }
 ```
 
 ### Node.js
 
 ```javascript
-const { Migrator } = require('migradb');
+const { Client } = require('pg');
+const { runOnDatabase, generateModels } = require('migradb');
 
-const m = new Migrator('./migrations');
-const result = m.run();
+async function main() {
+    const client = new Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
 
-if (result.success) {
+    // 1. Run migrations directly on PostgreSQL
+    const result = await runOnDatabase(client, './migrations');
     console.log(`Applied ${result.applied} migrations`);
-} else {
-    console.error(`Migration error: ${result.error}`);
+
+    await client.end();
+
+    // 2. Generate TypeScript models from DrawDB JSON diagram
+    generateModels('schema/drawdb.json', 'node', './src/models');
 }
+
+main().catch(console.error);
 ```
 
 ### Python
 
 ```python
-from migradb import Migrator
+import psycopg2
+from migradb import run_on_connection, generate_models
 
-m = Migrator("./migrations")
-result = m.run()
+# 1. Run migrations directly on PostgreSQL connection
+conn = psycopg2.connect("dbname=myapp user=postgres password=secret host=localhost")
+result = run_on_connection(conn, "./migrations")
+print(f"Applied {result.applied} migrations")
+conn.close()
 
-if result.success:
-    print(f"Applied {result.applied} migrations")
-else:
-    print(f"Migration error: {result.error}")
+# 2. Generate SQLAlchemy 2.0 models from DrawDB diagram
+generate_models("schema/drawdb.json", "python", "./app/models.py")
 ```
 
 ## Architecture

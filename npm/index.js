@@ -63,6 +63,8 @@ module.exports = {
   StatusResult: native.StatusResult,
   CreateResult: native.CreateResult,
   RemoveResult: native.RemoveResult,
+  GenerateResult: native.GenerateResult,
+  generateModels: native.generateModels,
   runOnDatabase,
   statusOnDatabase,
 };

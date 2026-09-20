@@ -5,16 +5,26 @@ All notable changes to MigrDB will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] - 2026-09-20
 
 ### Added
 - **Standalone CLI tool (`migradb`)** with subcommands for `init`, `create`, `status`, and `generate`.
+- **Node.js CLI via `npx migradb`** bundled directly into the `migradb` npm package (`bin/migradb.js`).
+- **DrawDB Model Generator Exposed across all bindings**:
+  - Node.js: `generateModels(schemaPath, targetLang, outputDir, pkg)` and `migrator.generateModels(...)`.
+  - Python: `generate_models(schema_path, target_lang, output_dir, pkg)` and `migrator.generate_models(...)`.
+  - Go: `m.GenerateModels(...)`.
 - **Rust model generator (`TargetLanguage::Rust`)** creating serde-compatible models and `sqlx::FromRow` derivations.
 - **SQL DDL generator (`TargetLanguage::Sql`)** creating schema tables, constraints, and foreign keys for PostgreSQL, MySQL, and SQLite.
 - **Direct Database Execution Helpers**:
   - Go: `RunDB` and `StatusDB` for transaction-safe migrations using Go standard library `database/sql`.
   - Node.js: `runOnDatabase` and `statusOnDatabase` supporting `pg`, `mysql2`, and `better-sqlite3`.
-  - Python: `run_on_connection` and `status_on_connection` supporting standard Python DB-API 2.0 connections.
+  - Python: `run_on_connection` and `status_on_connection` supporting standard Python DB-API 2.0 connections (`psycopg2`, `sqlite3`, `pymysql`).
+- Comprehensive documentation, guides, and practical database examples for Node.js and Python.
+
+### Fixed
+- Fixed PyO3 compilation error in Python bindings by deriving `Clone` on `TargetLanguage`.
+- Decoupled GitHub Actions `publish-npm` and `publish-pypi` into dedicated single-runner jobs to prevent race conditions during multi-platform matrix builds.
 
 ## [0.1.0] - 2026-09-12
 
@@ -65,5 +75,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flask, FastAPI, Django integration examples
 - Async support via `asyncio.to_thread`
 
-[Unreleased]: https://github.com/MuchammadTedyA/migradb/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/MuchammadTedyA/migradb/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/MuchammadTedyA/migradb/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/MuchammadTedyA/migradb/releases/tag/v0.1.0

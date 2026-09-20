@@ -1,13 +1,17 @@
 {
   "name": "migradb",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MigrDB - SQL database migration library with Rust engine",
   "main": "index.js",
   "types": "index.d.ts",
+  "bin": {
+    "migradb": "./bin/migradb.js"
+  },
   "files": [
     "index.js",
     "index.d.ts",
     "runner.js",
+    "bin/",
     "*.node",
     "native/"
   ],

@@ -12,10 +12,12 @@ from migration_engine_py import (
     StatusResult,
     CreateResult,
     RemoveResult,
+    GenerateResult,
+    generate_models,
 )
 from .runner import run_on_connection, status_on_connection
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __all__ = [
     "Migrator",
     "Migration",
@@ -24,6 +26,8 @@ __all__ = [
     "StatusResult",
     "CreateResult",
     "RemoveResult",
+    "GenerateResult",
+    "generate_models",
     "run_on_connection",
     "status_on_connection",
 ]

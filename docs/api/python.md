@@ -5,8 +5,58 @@ Complete API reference for the MigrDB Python package.
 ## Package: `migradb`
 
 ```python
-from migradb import Migrator
+from migradb import (
+    Migrator,
+    run_on_connection,
+    status_on_connection,
+    generate_models,
+)
 ```
+
+## Functions
+
+### `run_on_connection(conn, migrations_dir)`
+
+Executes all pending migrations directly against a live Python DB-API 2.0 connection within an atomic transaction.
+
+```python
+def run_on_connection(conn: Any, migrations_dir: str) -> RunResult: ...
+```
+
+- **Supported Connections**: Any standard Python DB-API 2.0 connection (`sqlite3.Connection`, `psycopg2.extensions.connection`, `pymysql.connections.Connection`).
+- **Returns**: `RunResult` containing `success`, `applied` count, `migrations`, and optional `error`.
+
+### `status_on_connection(conn, migrations_dir)`
+
+Inspects migration status directly against a live database connection.
+
+```python
+def status_on_connection(conn: Any, migrations_dir: str) -> StatusResult: ...
+```
+
+- **Returns**: `StatusResult` containing `success` and list of `MigrationStatus`.
+
+### `generate_models(schema_path, target_lang, output_dir, pkg_or_namespace=None)`
+
+Standalone function to generate models from a DrawDB diagram export file.
+
+```python
+def generate_models(
+    schema_path: str,
+    target_lang: str,
+    output_dir: str,
+    pkg_or_namespace: Optional[str] = None
+) -> GenerateResult: ...
+```
+
+- **Parameters**:
+  - `schema_path`: Path to the DrawDB JSON export file
+  - `target_lang`: Target language (`"python"`, `"py"`, `"node"`, `"go"`, `"rust"`, `"sql"`)
+  - `output_dir`: Output file or directory path
+  - `pkg_or_namespace` (optional): Package name or namespace
+- **Returns**: `GenerateResult` containing `success`, list of `files`, and optional `error`.
+
+---
 
 ## Classes
 
@@ -21,6 +71,13 @@ class Migrator:
     def status(self) -> StatusResult: ...
     def create(self, name: str, content: str) -> CreateResult: ...
     def remove_pending(self) -> RemoveResult: ...
+    def generate_models(
+        self,
+        schema_path: str,
+        target_lang: str,
+        output_dir: str,
+        pkg_or_namespace: Optional[str] = None
+    ) -> GenerateResult: ...
 ```
 
 **Methods:**
@@ -32,6 +89,7 @@ class Migrator:
 | `status` | `status(self) -> StatusResult` | Returns migration status |
 | `create` | `create(self, name: str, content: str) -> CreateResult` | Creates a new migration file |
 | `remove_pending` | `remove_pending(self) -> RemoveResult` | Removes last pending migration |
+| `generate_models` | `generate_models(self, schema_path, target_lang, output_dir, pkg=None) -> GenerateResult` | Generates models from DrawDB JSON export |
 
 ---
 
@@ -163,6 +221,27 @@ class RemoveResult:
 | message | `Optional[str]` | Informational message |
 | error | `Optional[str]` | Error message if failed |
 
+---
+
+### `GenerateResult`
+
+Result from generating models from DrawDB schema.
+
+```python
+class GenerateResult:
+    success: bool
+    files: List[str]
+    error: Optional[str]
+```
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| success | `bool` | Whether code generation succeeded |
+| files | `List[str]` | List of generated file paths |
+| error | `Optional[str]` | Error message if failed |
+
 ## Usage Examples
 
 ### Constructor
@@ -223,6 +302,45 @@ if result.success:
         print(result.message)
 ```
 
+### Direct Database Migration (`run_on_connection`)
+
+Execute migrations against real DB-API 2.0 connections (`sqlite3`, `psycopg2`, `pymysql`) in an atomic transaction:
+
+```python
+import psycopg2
+from migradb import run_on_connection, status_on_connection
+
+conn = psycopg2.connect("dbname=myapp user=postgres password=secret host=localhost")
+
+# Run migrations
+result = run_on_connection(conn, "./migrations")
+if result.success:
+    print(f"Applied {result.applied} migrations")
+else:
+    print(f"Failed: {result.error}")
+
+# Check status
+status = status_on_connection(conn, "./migrations")
+for s in status.migrations:
+    print(f"[{'APPLIED' if s.applied else 'PENDING'}] {s.version} - {s.name}")
+
+conn.close()
+```
+
+### Model Generation (`generate_models`)
+
+Generate SQLAlchemy 2.0 declarative models from DrawDB JSON export:
+
+```python
+from migradb import generate_models
+
+result = generate_models("schema/drawdb.json", "python", "./app/models.py")
+if result.success:
+    print(f"Generated {len(result.files)} files: {result.files}")
+else:
+    print(f"Generation error: {result.error}")
+```
+
 ## Error Handling
 
 All methods return result objects with a `success` boolean. Check this first before accessing other properties.
@@ -244,7 +362,17 @@ print(f"Applied {result.applied} migrations")
 The library supports Python type hints:
 
 ```python
-from migradb import Migrator, RunResult, StatusResult
+from migradb import (
+    Migrator,
+    RunResult,
+    StatusResult,
+    CreateResult,
+    RemoveResult,
+    GenerateResult,
+    run_on_connection,
+    status_on_connection,
+    generate_models,
+)
 
 m: Migrator = Migrator("./migrations")
 result: RunResult = m.run()

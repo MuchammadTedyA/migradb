@@ -56,33 +56,79 @@ go mod tidy
 
 ## Quick Start
 
+MigraDB provides both **direct database runners** (`RunDB`, `StatusDB`) for executing migrations against standard Go `*sql.DB` connections, and the **core `Migrator`** for file management and DrawDB model generation.
+
+### 1. Running Migrations on a Real Database (Recommended)
+
+Works with any standard Go SQL driver (PostgreSQL via `lib/pq` or `pgx/stdlib`, MySQL via `go-sql-driver/mysql`, SQLite via `go-sqlite3`):
+
+```go
+package main
+
+import (
+    "context"
+    "database/sql"
+    "fmt"
+    "log"
+
+    _ "github.com/lib/pq"
+    migration "github.com/MuchammadTedyA/migradb/go"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 1. Open database connection
+    db, err := sql.Open("postgres", "postgres://postgres:secret@localhost:5432/myapp?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // 2. Inspect migration status (applied vs pending)
+    status, err := migration.StatusDB(ctx, db, "./migrations")
+    if err != nil {
+        log.Fatal(err)
+    }
+    for _, m := range status.Migrations {
+        state := "PENDING"
+        if m.Applied {
+            state = "APPLIED"
+        }
+        fmt.Printf("[%s] %s - %s\n", state, m.Version, m.Name)
+    }
+
+    // 3. Apply all pending migrations in atomic transactions
+    result, err := migration.RunDB(ctx, db, "./migrations")
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Successfully applied %d migration(s)!\n", result.Applied)
+}
+```
+
+### 2. Generating Go Models from DrawDB (`drawdb.json`)
+
 ```go
 package main
 
 import (
     "fmt"
     "log"
-    "github.com/MuchammadTedyA/migradb/go"
+
+    migration "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
-    // Create migrator instance
     m := migration.NewMigrator("./migrations")
     defer m.Close()
 
-    // Run all pending migrations
-    result, err := m.Run()
+    // Generate Go structs with json/db tags and relationship pointers
+    res, err := m.GenerateModels("schema/drawdb.json", "go", "./internal/models", "models")
     if err != nil {
-        log.Fatal(err)
+        log.Fatalf("Model generation failed: %v", err)
     }
-    fmt.Printf("Applied %d migrations\n", result.Applied)
-
-    // Generate Go model classes from DrawDB schema
-    modelRes, err := m.GenerateModels("schema/drawdb.json", "go", "./internal/models", "models")
-    if err != nil {
-        log.Fatal(err)
-    }
-    fmt.Printf("Generated %d model classes in ./internal/models\n", modelRes.Count)
+    fmt.Printf("Generated %d model files in ./internal/models\n", res.Count)
 }
 ```
 
@@ -175,6 +221,43 @@ type RemoveResult struct {
 ```
 
 ### Functions
+
+#### `RunDB(ctx context.Context, db *sql.DB, migrationsDir string) (*RunResult, error)`
+
+Executes all pending migrations directly against any standard Go `*sql.DB` connection within atomic transactions. Automatically creates and updates the `schema_migrations` audit table.
+
+**Parameters:**
+- `ctx` - Context for query cancellation and timeouts
+- `db` - Standard library `*sql.DB` connection pool
+- `migrationsDir` - Directory containing `.sql` migration files
+
+**Returns:**
+- `*RunResult` - Execution outcome containing count and list of applied migrations
+- `error` - Error if migration failed (automatically rolls back the transaction)
+
+**Example:**
+```go
+result, err := migration.RunDB(ctx, db, "./migrations")
+if err != nil {
+    log.Fatalf("Migration failed: %v", err)
+}
+fmt.Printf("Applied %d migrations\n", result.Applied)
+```
+
+#### `StatusDB(ctx context.Context, db *sql.DB, migrationsDir string) (*StatusResult, error)`
+
+Inspects migration status (applied vs pending) by comparing `.sql` files against the live database `schema_migrations` table.
+
+**Example:**
+```go
+status, err := migration.StatusDB(ctx, db, "./migrations")
+if err != nil {
+    log.Fatal(err)
+}
+for _, s := range status.Migrations {
+    fmt.Printf("[%t] %s - %s\n", s.Applied, s.Version, s.Name)
+}
+```
 
 #### `NewMigrator(migrationsDir string) *Migrator`
 
@@ -379,27 +462,38 @@ result, err := m.Create("add employees table", `
 
 ## Integration with Web Frameworks
 
-### Gin Framework
+### Gin Framework (Startup Auto-Migration)
 
 ```go
 package main
 
 import (
+    "context"
+    "database/sql"
+    "log"
+
     "github.com/gin-gonic/gin"
-    "github.com/MuchammadTedyA/migradb/go"
+    _ "github.com/lib/pq"
+    migration "github.com/MuchammadTedyA/migradb/go"
 )
 
-var migrator *migration.Migrator
+var db *sql.DB
 
 func main() {
-    // Initialize migrator
-    migrator = migration.NewMigrator("./migrations")
-    defer migrator.Close()
-
-    // Run migrations on startup
-    if _, err := migrator.Run(); err != nil {
-        log.Fatal("Failed to run migrations:", err)
+    var err error
+    db, err = sql.Open("postgres", "postgres://postgres:secret@localhost:5432/myapp?sslmode=disable")
+    if err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
     }
+    defer db.Close()
+
+    // Run migrations automatically on server startup
+    ctx := context.Background()
+    result, err := migration.RunDB(ctx, db, "./migrations")
+    if err != nil {
+        log.Fatalf("Failed to run migrations on startup: %v", err)
+    }
+    log.Printf("Startup migrations applied: %d", result.Applied)
 
     // Setup routes
     r := gin.Default()
@@ -410,7 +504,7 @@ func main() {
 }
 
 func migrationStatusHandler(c *gin.Context) {
-    status, err := migrator.Status()
+    status, err := migration.StatusDB(c.Request.Context(), db, "./migrations")
     if err != nil {
         c.JSON(500, gin.H{"error": err.Error()})
         return
@@ -419,7 +513,7 @@ func migrationStatusHandler(c *gin.Context) {
 }
 
 func migrationRunHandler(c *gin.Context) {
-    result, err := migrator.Run()
+    result, err := migration.RunDB(c.Request.Context(), db, "./migrations")
     if err != nil {
         c.JSON(500, gin.H{"error": err.Error()})
         return
@@ -434,18 +528,32 @@ func migrationRunHandler(c *gin.Context) {
 package main
 
 import (
+    "context"
+    "database/sql"
+    "log"
+
     "github.com/gofiber/fiber/v2"
-    "github.com/MuchammadTedyA/migradb/go"
+    _ "github.com/mattn/go-sqlite3"
+    migration "github.com/MuchammadTedyA/migradb/go"
 )
 
 func main() {
-    m := migration.NewMigrator("./migrations")
-    defer m.Close()
+    db, err := sql.Open("sqlite3", "./app.db")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // Auto-migrate on start
+    ctx := context.Background()
+    if _, err := migration.RunDB(ctx, db, "./migrations"); err != nil {
+        log.Fatalf("Migration failed: %v", err)
+    }
 
     app := fiber.New()
 
     app.Get("/migrations/status", func(c *fiber.Ctx) error {
-        status, err := m.Status()
+        status, err := migration.StatusDB(c.Context(), db, "./migrations")
         if err != nil {
             return c.Status(500).JSON(fiber.Map{"error": err.Error()})
         }
@@ -456,40 +564,48 @@ func main() {
 }
 ```
 
-## Database Connection
+## Database Connection Drivers
 
-The migration library handles file parsing and version tracking. For actual database execution, you need to integrate with your database driver.
+`migration.RunDB` and `migration.StatusDB` operate on standard Go `*sql.DB` connections:
 
-### PostgreSQL with pgx
+### PostgreSQL (`lib/pq` or `pgx/stdlib`)
 
 ```go
-package main
-
 import (
     "context"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/MuchammadTedyA/migradb/go"
+    "database/sql"
+    _ "github.com/lib/pq"
+    migration "github.com/MuchammadTedyA/migradb/go"
 )
 
-func main() {
-    ctx := context.Background()
+db, err := sql.Open("postgres", "postgres://user:password@localhost:5432/dbname?sslmode=disable")
+res, err := migration.RunDB(context.Background(), db, "./migrations")
+```
 
-    // Connect to database
-    db, err := pgxpool.New(ctx, "postgres://user:pass@localhost/dbname")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer db.Close()
+### MySQL (`go-sql-driver/mysql`)
 
-    // Run migrations
-    m := migration.NewMigrator("./migrations")
-    defer m.Close()
+```go
+import (
+    "context"
+    "database/sql"
+    _ "github.com/go-sql-driver/mysql"
+    migration "github.com/MuchammadTedyA/migradb/go"
+)
 
-    result, err := m.Run()
-    if err != nil {
-        log.Fatal(err)
-    }
+db, err := sql.Open("mysql", "user:password@tcp(127.0.0.1:3306)/dbname?multiStatements=true")
+res, err := migration.RunDB(context.Background(), db, "./migrations")
+```
 
-    fmt.Printf("Applied %d migrations\n", result.Applied)
-}
+### SQLite (`mattn/go-sqlite3` or `modernc.org/sqlite`)
+
+```go
+import (
+    "context"
+    "database/sql"
+    _ "github.com/mattn/go-sqlite3"
+    migration "github.com/MuchammadTedyA/migradb/go"
+)
+
+db, err := sql.Open("sqlite3", "./app.db")
+res, err := migration.RunDB(context.Background(), db, "./migrations")
 ```
