@@ -200,6 +200,13 @@ jobs:
           ls -la native/ || true
           ls -la *.node || true
 
+      - name: Sync package.json version with git tag
+        working-directory: npm
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting npm package.json version to $TAG_VERSION"
+          npm version "$TAG_VERSION" --no-git-tag-version --allow-same-version || true
+
       - name: Publish to npm
         if: env.NODE_AUTH_TOKEN != ''
         working-directory: npm
