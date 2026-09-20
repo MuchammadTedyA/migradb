@@ -53,6 +53,106 @@ pub struct GenerateResult {
     pub error: Option<String>,
 }
 
+#[napi(object)]
+pub struct DiffResult {
+    pub success: bool,
+    pub migration_path: Option<String>,
+    pub diff_summary: String,
+    pub is_empty: bool,
+    pub statements: Vec<String>,
+    pub error: Option<String>,
+}
+
+#[napi(object)]
+pub struct SyncPlan {
+    pub success: bool,
+    pub is_empty: bool,
+    pub diff_summary: String,
+    pub statements: Vec<String>,
+    pub sql: String,
+    pub dialect: String,
+    pub error: Option<String>,
+}
+
+#[napi]
+pub fn diff_drawdb(
+    schema_path: String,
+    migrations_dir: Option<String>,
+    schema_dir: Option<String>,
+    migration_name: Option<String>,
+    dialect: Option<String>,
+    force_full: Option<bool>,
+) -> DiffResult {
+    let mig_dir = migrations_dir.unwrap_or_else(|| "./migrations".to_string());
+    let sch_dir = schema_dir.unwrap_or_else(|| "./schema".to_string());
+    let name = migration_name.unwrap_or_else(|| "sync_drawdb".to_string());
+
+    match migration_engine::codegen::diff_drawdb(
+        &schema_path,
+        &mig_dir,
+        &sch_dir,
+        &name,
+        dialect.as_deref(),
+        force_full.unwrap_or(false),
+    ) {
+        Ok(res) => DiffResult {
+            success: res.success,
+            migration_path: res.migration_path,
+            diff_summary: res.diff_summary,
+            is_empty: res.is_empty,
+            statements: res.statements,
+            error: res.error,
+        },
+        Err(e) => DiffResult {
+            success: false,
+            migration_path: None,
+            diff_summary: "".to_string(),
+            is_empty: false,
+            statements: vec![],
+            error: Some(e.to_string()),
+        },
+    }
+}
+
+#[napi]
+pub fn plan_sync_drawdb(
+    schema_path: String,
+    migrations_dir: Option<String>,
+    schema_dir: Option<String>,
+    dialect: Option<String>,
+    force_full: Option<bool>,
+) -> SyncPlan {
+    let mig_dir = migrations_dir.unwrap_or_else(|| "./migrations".to_string());
+    let sch_dir = schema_dir.unwrap_or_else(|| "./schema".to_string());
+
+    match migration_engine::codegen::plan_sync_drawdb(
+        &schema_path,
+        &mig_dir,
+        &sch_dir,
+        dialect.as_deref(),
+        force_full.unwrap_or(false),
+    ) {
+        Ok(res) => SyncPlan {
+            success: res.success,
+            is_empty: res.is_empty,
+            diff_summary: res.diff_summary,
+            statements: res.statements,
+            sql: res.sql,
+            dialect: res.dialect,
+            error: res.error,
+        },
+        Err(e) => SyncPlan {
+            success: false,
+            is_empty: false,
+            diff_summary: "".to_string(),
+            statements: vec![],
+            sql: "".to_string(),
+            dialect: "".to_string(),
+            error: Some(e.to_string()),
+        },
+    }
+}
+
 #[napi]
 pub fn generate_models(
     schema_path: String,
@@ -204,6 +304,73 @@ impl Migrator {
                 success: false,
                 removed: None,
                 message: None,
+                error: Some(e.to_string()),
+            },
+        }
+    }
+
+    #[napi]
+    pub fn diff_drawdb(
+        &self,
+        schema_path: String,
+        migration_name: Option<String>,
+        dialect: Option<String>,
+        force_full: Option<bool>,
+    ) -> DiffResult {
+        let name = migration_name.unwrap_or_else(|| "sync_drawdb".to_string());
+        match self.inner.diff_drawdb(
+            &schema_path,
+            &name,
+            dialect.as_deref(),
+            force_full.unwrap_or(false),
+        ) {
+            Ok(res) => DiffResult {
+                success: res.success,
+                migration_path: res.migration_path,
+                diff_summary: res.diff_summary,
+                is_empty: res.is_empty,
+                statements: res.statements,
+                error: res.error,
+            },
+            Err(e) => DiffResult {
+                success: false,
+                migration_path: None,
+                diff_summary: "".to_string(),
+                is_empty: false,
+                statements: vec![],
+                error: Some(e.to_string()),
+            },
+        }
+    }
+
+    #[napi]
+    pub fn plan_sync_drawdb(
+        &self,
+        schema_path: String,
+        dialect: Option<String>,
+        force_full: Option<bool>,
+    ) -> SyncPlan {
+        match self.inner.plan_sync_drawdb(
+            &schema_path,
+            dialect.as_deref(),
+            force_full.unwrap_or(false),
+        ) {
+            Ok(res) => SyncPlan {
+                success: res.success,
+                is_empty: res.is_empty,
+                diff_summary: res.diff_summary,
+                statements: res.statements,
+                sql: res.sql,
+                dialect: res.dialect,
+                error: res.error,
+            },
+            Err(e) => SyncPlan {
+                success: false,
+                is_empty: false,
+                diff_summary: "".to_string(),
+                statements: vec![],
+                sql: "".to_string(),
+                dialect: "".to_string(),
                 error: Some(e.to_string()),
             },
         }

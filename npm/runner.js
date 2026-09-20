@@ -192,7 +192,133 @@ async function statusOnDatabase(client, migrationsDir) {
   }
 }
 
+function detectDialect(client) {
+  if (!client) return 'postgres';
+  if (typeof client.prepare === 'function' || (typeof client.exec === 'function' && !client.query)) {
+    return 'sqlite';
+  }
+  if (client.threadId !== undefined || client.config?.database || (client.format && client.escape)) {
+    return 'mysql';
+  }
+  return 'postgres';
+}
+
+/**
+ * Synchronizes the database schema against a DrawDB schema file.
+ * Dynamically compares schema against snapshot, translates DDL for target dialect,
+ * executes in transaction, updates schema_migrations and snapshot, and optionally saves audit SQL.
+ */
+async function syncDatabase(client, options = {}) {
+  const {
+    schema = './schema/drawdb.json',
+    migrationsDir = './migrations',
+    schemaDir = './schema',
+    dialect: specifiedDialect,
+    saveMigrationFile = true,
+    migrationName = 'sync_drawdb',
+    forceFull = false,
+  } = options;
+
+  const dialect = specifiedDialect || detectDialect(client);
+
+  if (!fs.existsSync(schemaDir)) {
+    fs.mkdirSync(schemaDir, { recursive: true });
+  }
+  if (!fs.existsSync(migrationsDir)) {
+    fs.mkdirSync(migrationsDir, { recursive: true });
+  }
+
+  const { planSyncDrawdb, diffDrawdb } = require('./index');
+
+  const plan = planSyncDrawdb(schema, migrationsDir, schemaDir, dialect, forceFull);
+  if (!plan.success && plan.error) {
+    return {
+      success: false,
+      isEmpty: false,
+      applied: 0,
+      diffSummary: '',
+      migrationPath: null,
+      statements: [],
+      error: plan.error,
+    };
+  }
+
+  if (plan.isEmpty || !plan.statements || plan.statements.length === 0) {
+    return {
+      success: true,
+      isEmpty: true,
+      applied: 0,
+      diffSummary: plan.diffSummary,
+      statements: [],
+      migrationPath: null,
+    };
+  }
+
+  const initSql = `
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version VARCHAR(255) PRIMARY KEY,
+      applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  await executeQuery(client, initSql);
+
+  try {
+    await executeQuery(client, 'BEGIN;');
+    for (const stmt of plan.statements) {
+      const trimmed = stmt.trim();
+      if (trimmed) {
+        await executeQuery(client, trimmed);
+      }
+    }
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const version = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
+    const recordSql = `INSERT INTO schema_migrations (version) VALUES ('${version}');`;
+    await executeQuery(client, recordSql);
+
+    await executeQuery(client, 'COMMIT;');
+
+    let migrationPath = null;
+    if (saveMigrationFile) {
+      const diffRes = diffDrawdb(schema, migrationsDir, schemaDir, migrationName, dialect, forceFull);
+      if (diffRes && diffRes.migrationPath) {
+        migrationPath = diffRes.migrationPath;
+      }
+    } else {
+      const content = fs.readFileSync(schema, 'utf8');
+      fs.writeFileSync(path.join(schemaDir, 'drawdb_snapshot.json'), content);
+      fs.writeFileSync(path.join(migrationsDir, '.schema_snapshot.json'), content);
+    }
+
+    return {
+      success: true,
+      isEmpty: false,
+      applied: plan.statements.length,
+      diffSummary: plan.diffSummary,
+      migrationPath,
+      statements: plan.statements,
+    };
+  } catch (err) {
+    try {
+      await executeQuery(client, 'ROLLBACK;');
+    } catch (_) {}
+    return {
+      success: false,
+      isEmpty: false,
+      applied: 0,
+      diffSummary: plan.diffSummary,
+      migrationPath: null,
+      statements: plan.statements,
+      error: err.message || String(err),
+    };
+  }
+}
+
 module.exports = {
   runOnDatabase,
   statusOnDatabase,
+  syncDatabase,
+  detectDialect,
 };
+

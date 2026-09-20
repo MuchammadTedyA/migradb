@@ -5,10 +5,13 @@ A fast, lightweight SQL database migration library with a Rust core engine for N
 ## Features
 
 - ⚡ **Fast & Lightweight**: Native Rust parsing and validation engine via N-API.
+- 🔄 **Universal Schema Sync (Approach 1)**: Sync live databases directly from DrawDB (`drawdb.json`) with zero migration regeneration on database engine switch.
+- 🎯 **Multi-Dialect Support**: PostgreSQL by default, with complete native support for MySQL and SQLite.
+- 📁 **Auto Directory Conventions**: Auto-creates `./schema` and `./migrations` if missing; allows custom paths.
 - 🔄 **Universal Database Support**: Works with `pg` (PostgreSQL), `mysql2` (MySQL), `better-sqlite3` / `sqlite3`, or any query callback.
-- 🛡️ **Transactional Safety**: Automatically executes each migration within its own transaction.
+- 🛡️ **Transactional Safety**: Automatically executes each migration within its own atomic transaction.
 - 📜 **Plain SQL Files**: Standard `.sql` files with timestamp-based ordering (`YYYYMMDDHHmmss_name.sql`).
-- 📊 **Automatic History**: Manages a `schema_migrations` tracking table automatically.
+- 📊 **Automatic History & Audit**: Manages `schema_migrations` tracking table and snapshots automatically.
 - 🔷 **First-Class TypeScript Support**: Full type definitions included out of the box.
 
 ---
@@ -19,10 +22,10 @@ A fast, lightweight SQL database migration library with a Rust core engine for N
 npm install migradb
 ```
 
-Plus your favorite database driver (e.g., `pg`, `mysql2`, or `better-sqlite3`):
+Plus your favorite database driver:
 
 ```bash
-# For PostgreSQL
+# For PostgreSQL (default dialect)
 npm install pg
 
 # For MySQL
@@ -34,7 +37,86 @@ npm install better-sqlite3
 
 ---
 
-## 2. Create Migration Files
+## 2. Universal Schema Sync (`syncDatabase`) - Recommended
+
+Design your database schema visually in DrawDB, export the JSON, and let MigraDB synchronize your database on application start.
+
+### Why Approach 1?
+- **Zero Migration Regeneration**: If you change your database midway (e.g., SQLite in local testing -> PostgreSQL in production, or MySQL -> PostgreSQL), **you do not need to rewrite or regenerate any migrations**. Simply change your database connection, and MigraDB dynamically emits the correct DDL dialect!
+- **Default Directory Conventions**: Automatically creates `./schema` and `./migrations` in the root project if they do not exist. If they already exist, files are placed directly inside.
+- **Dialect Defaults**: Defaults to **PostgreSQL**. MySQL and SQLite are fully supported.
+- **Audit Logging**: Saves timestamped audit migrations (`migrations/YYYYMMDDHHmmss_sync_drawdb.sql`) and snapshots (`schema/drawdb_snapshot.json`).
+
+### A. With PostgreSQL (`pg`)
+```javascript
+const { Client } = require('pg');
+const { syncDatabase } = require('migradb');
+
+async function main() {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+
+  // Synchronize against DrawDB schema
+  const res = await syncDatabase(client, {
+    schema: './schema/drawdb.json',    // Default schema path
+    migrationsDir: './migrations',     // Auto-created if missing
+    schemaDir: './schema',             // Auto-created if missing
+    saveMigrationFile: true,           // Save audit .sql migration
+    migrationName: 'init_schema',      // Migration slug
+  });
+
+  if (res.isEmpty) {
+    console.log('✅ Schema is already up to date.');
+  } else if (res.success) {
+    console.log(`✅ Applied ${res.applied} statements! Audit file: ${res.migrationPath}`);
+  } else {
+    console.error('❌ Sync failed:', res.error);
+  }
+
+  await client.end();
+}
+
+main();
+```
+
+### B. With MySQL (`mysql2`)
+```javascript
+const mysql = require('mysql2/promise');
+const { syncDatabase } = require('migradb');
+
+async function main() {
+  const connection = await mysql.createConnection({
+    host: 'localhost', user: 'root', password: 'password', database: 'mydb',
+  });
+
+  const res = await syncDatabase(connection, {
+    schema: './schema/drawdb.json',
+    dialect: 'mysql', // Explicit or auto-detected
+  });
+
+  console.log(`Applied ${res.applied} statements to MySQL!`);
+  await connection.end();
+}
+
+main();
+```
+
+### C. With SQLite (`better-sqlite3`)
+```javascript
+const Database = require('better-sqlite3');
+const { syncDatabase } = require('migradb');
+
+const db = new Database('app.db');
+const res = await syncDatabase(db, {
+  schema: './schema/drawdb.json',
+  dialect: 'sqlite', // Auto-detected from better-sqlite3 instance
+});
+console.log(`Applied ${res.applied} statements to SQLite!`);
+```
+
+---
+
+## 3. Applying Manual Migration Files (`runOnDatabase`)
 
 Create a `migrations/` folder in your project and add your `.sql` files:
 
@@ -239,6 +321,11 @@ npx migradb generate -s ./schema/drawdb.json -l ts -o ./src/models
 
 # Create a new timestamped migration:
 npx migradb create add_users_table --dir ./migrations
+
+# Calculate schema diff against DrawDB diagram and generate incremental migration:
+npx migradb diff --schema ./schema/drawdb.json --name add_user_profiles --dialect postgres
+npx migradb diff --schema ./schema/drawdb.json --name add_user_profiles --dialect mysql
+npx migradb diff --schema ./schema/drawdb.json --name add_user_profiles --dialect sqlite
 ```
 
 ---

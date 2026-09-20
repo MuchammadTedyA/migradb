@@ -5,14 +5,48 @@ Complete API reference for the MigrDB Node.js module.
 ## Module: `migradb`
 
 ```javascript
-const { Migrator, runOnDatabase, statusOnDatabase, generateModels } = require('migradb');
+const { Migrator, syncDatabase, detectDialect, runOnDatabase, statusOnDatabase, generateModels } = require('migradb');
 // or
-import { Migrator, runOnDatabase, statusOnDatabase, generateModels } from 'migradb';
+import { Migrator, syncDatabase, detectDialect, runOnDatabase, statusOnDatabase, generateModels } from 'migradb';
 ```
 
 ## Functions
 
+### `syncDatabase(client, options?)`
+
+Synchronizes a live database against a DrawDB schema file with dynamic multi-dialect translation and snapshot tracking.
+
+```typescript
+function syncDatabase(
+    client: any,
+    options?: {
+        schema?: string;            // Path to drawdb.json (default: './schema/drawdb.json')
+        migrationsDir?: string;     // Migrations directory (default: './migrations')
+        schemaDir?: string;         // Schema snapshots directory (default: './schema')
+        dialect?: string;           // 'postgres' (default), 'mysql', or 'sqlite'
+        saveMigrationFile?: boolean;// Save audit .sql migration (default: true)
+        migrationName?: string;     // Migration slug (default: 'sync_drawdb')
+        forceFull?: boolean;        // Force baseline generation (default: false)
+    }
+): Promise<SyncResult>;
+```
+
+- **Features**:
+  - Auto-creates `./schema` and `./migrations` folders if missing.
+  - Generates dialect-accurate DDL for PostgreSQL (default), MySQL, and SQLite.
+  - Zero migration regeneration required when switching database engines midway.
+- **Returns**: `Promise<SyncResult>` containing `success`, `isEmpty`, `applied` statements count, `diffSummary`, `migrationPath`, `statements`, and optional `error`.
+
+### `detectDialect(client)`
+
+Infers the database dialect (`'postgres'`, `'mysql'`, or `'sqlite'`) from the client object.
+
+```typescript
+function detectDialect(client: any): string;
+```
+
 ### `runOnDatabase(client, migrationsDir)`
+
 
 Executes all pending migrations directly against a live database client within an atomic transaction.
 

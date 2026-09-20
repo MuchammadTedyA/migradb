@@ -107,7 +107,7 @@ pub fn generate_sql_ddl(schema: &SchemaModel, dialect_str: &str) -> Vec<(String,
     ]
 }
 
-fn map_sql_type(raw_type: &str, size: Option<&str>, is_primary: bool, dialect: SqlDialect) -> String {
+pub fn map_sql_type(raw_type: &str, size: Option<&str>, is_primary: bool, dialect: SqlDialect) -> String {
     let t = raw_type.to_uppercase();
     match dialect {
         SqlDialect::Postgres => match t.as_str() {

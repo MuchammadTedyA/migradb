@@ -30,6 +30,39 @@ pub extern "C" fn migrator_new(migrations_dir: *const c_char) -> *mut MigratorHa
 }
 
 #[no_mangle]
+pub extern "C" fn migrator_new_with_schema(
+    migrations_dir: *const c_char,
+    schema_dir: *const c_char,
+) -> *mut MigratorHandle {
+    if migrations_dir.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let dir_str = unsafe { CStr::from_ptr(migrations_dir) };
+    let dir_path = match dir_str.to_str() {
+        Ok(s) => PathBuf::from(s),
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let schema_path = if schema_dir.is_null() {
+        PathBuf::from("./schema")
+    } else {
+        match unsafe { CStr::from_ptr(schema_dir) }.to_str() {
+            Ok(s) if !s.is_empty() => PathBuf::from(s),
+            _ => PathBuf::from("./schema"),
+        }
+    };
+
+    let tracker = Arc::new(InMemoryTracker::new());
+    let migrator = MigratorBuilder::new()
+        .migrations_dir(dir_path)
+        .schema_dir(schema_path)
+        .build(tracker);
+
+    Box::into_raw(Box::new(MigratorHandle { migrator }))
+}
+
+#[no_mangle]
 pub extern "C" fn migrator_free(handle: *mut MigratorHandle) {
     if !handle.is_null() {
         unsafe {
@@ -228,6 +261,136 @@ pub extern "C" fn migrator_generate_models(
                 "error": e.to_string(),
             });
             CString::new(result.to_string()).unwrap().into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn migrator_diff_drawdb(
+    handle: *mut MigratorHandle,
+    schema_path: *const c_char,
+    schema_dir: *const c_char,
+    migration_name: *const c_char,
+    dialect: *const c_char,
+    force_full: bool,
+) -> *mut c_char {
+    if handle.is_null() || schema_path.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let handle = unsafe { &mut *handle };
+    let schema_str = match unsafe { CStr::from_ptr(schema_path) }.to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let schema_dir_opt = if schema_dir.is_null() {
+        None
+    } else {
+        match unsafe { CStr::from_ptr(schema_dir) }.to_str() {
+            Ok(s) if !s.is_empty() => Some(s),
+            _ => None,
+        }
+    };
+    let name_str = if migration_name.is_null() {
+        "sync_drawdb"
+    } else {
+        match unsafe { CStr::from_ptr(migration_name) }.to_str() {
+            Ok(s) if !s.is_empty() => s,
+            _ => "sync_drawdb",
+        }
+    };
+    let dialect_opt = if dialect.is_null() {
+        None
+    } else {
+        match unsafe { CStr::from_ptr(dialect) }.to_str() {
+            Ok(s) if !s.is_empty() => Some(s),
+            _ => None,
+        }
+    };
+
+    match handle.migrator.diff_drawdb_with_schema_dir(schema_str, schema_dir_opt, name_str, dialect_opt, force_full) {
+        Ok(res) => {
+            let json = serde_json::json!({
+                "success": res.success,
+                "migration_path": res.migration_path,
+                "diff_summary": res.diff_summary,
+                "is_empty": res.is_empty,
+                "statements": res.statements,
+                "error": res.error,
+            });
+            CString::new(json.to_string()).unwrap().into_raw()
+        }
+        Err(e) => {
+            let json = serde_json::json!({
+                "success": false,
+                "diff_summary": "",
+                "is_empty": false,
+                "statements": Vec::<String>::new(),
+                "error": e.to_string(),
+            });
+            CString::new(json.to_string()).unwrap().into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn migrator_plan_sync_drawdb(
+    handle: *mut MigratorHandle,
+    schema_path: *const c_char,
+    schema_dir: *const c_char,
+    dialect: *const c_char,
+    force_full: bool,
+) -> *mut c_char {
+    if handle.is_null() || schema_path.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let handle = unsafe { &mut *handle };
+    let schema_str = match unsafe { CStr::from_ptr(schema_path) }.to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let schema_dir_opt = if schema_dir.is_null() {
+        None
+    } else {
+        match unsafe { CStr::from_ptr(schema_dir) }.to_str() {
+            Ok(s) if !s.is_empty() => Some(s),
+            _ => None,
+        }
+    };
+    let dialect_opt = if dialect.is_null() {
+        None
+    } else {
+        match unsafe { CStr::from_ptr(dialect) }.to_str() {
+            Ok(s) if !s.is_empty() => Some(s),
+            _ => None,
+        }
+    };
+
+    match handle.migrator.plan_sync_drawdb_with_schema_dir(schema_str, schema_dir_opt, dialect_opt, force_full) {
+        Ok(res) => {
+            let json = serde_json::json!({
+                "success": res.success,
+                "is_empty": res.is_empty,
+                "diff_summary": res.diff_summary,
+                "statements": res.statements,
+                "sql": res.sql,
+                "dialect": res.dialect,
+                "error": res.error,
+            });
+            CString::new(json.to_string()).unwrap().into_raw()
+        }
+        Err(e) => {
+            let json = serde_json::json!({
+                "success": false,
+                "is_empty": false,
+                "diff_summary": "",
+                "statements": Vec::<String>::new(),
+                "sql": "",
+                "dialect": "",
+                "error": e.to_string(),
+            });
+            CString::new(json.to_string()).unwrap().into_raw()
         }
     }
 }

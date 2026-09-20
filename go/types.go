@@ -47,6 +47,53 @@ type GenerateModelsResult struct {
 	Error   string   `json:"error,omitempty"`
 }
 
+const (
+	DialectPostgres = "postgres"
+	DialectMySQL    = "mysql"
+	DialectSQLite   = "sqlite"
+)
+
+type DiffResult struct {
+	Success       bool     `json:"success"`
+	MigrationPath string   `json:"migration_path,omitempty"`
+	DiffSummary   string   `json:"diff_summary"`
+	IsEmpty       bool     `json:"is_empty"`
+	Statements    []string `json:"statements,omitempty"`
+	Error         string   `json:"error,omitempty"`
+}
+
+type SyncPlan struct {
+	Success     bool     `json:"success"`
+	IsEmpty     bool     `json:"is_empty"`
+	DiffSummary string   `json:"diff_summary"`
+	Statements  []string `json:"statements"`
+	SQL         string   `json:"sql"`
+	Dialect     string   `json:"dialect"`
+	Error       string   `json:"error,omitempty"`
+}
+
+type SyncOptions struct {
+	SchemaPath        string
+	MigrationsDir     string
+	SchemaDir         string // Directory for schema snapshots (default: "./schema")
+	Dialect           string // "postgres", "mysql", "sqlite"
+	ForceFull         bool
+	SaveMigrationFile bool
+	MigrationName     string
+}
+
+type SyncResult struct {
+	Success       bool     `json:"success"`
+	IsEmpty       bool     `json:"is_empty"`
+	Applied       int      `json:"applied"`
+	DiffSummary   string   `json:"diff_summary"`
+	MigrationPath string   `json:"migration_path,omitempty"`
+	Statements    []string `json:"statements,omitempty"`
+	Error         string   `json:"error,omitempty"`
+}
+
 type Migrator struct {
-	handle unsafe.Pointer
+	handle        unsafe.Pointer
+	MigrationsDir string
+	SchemaDir     string
 }

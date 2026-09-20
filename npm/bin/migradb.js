@@ -16,9 +16,11 @@ COMMANDS:
     init [--dir <PATH>]                      Initialize a migrations folder with starter schema
     status [--dir <PATH>]                    Check migration files in the migrations directory
     generate -s <FILE> -l <LANG> -o <DIR>    Generate SQL or models from DrawDB JSON
+    diff -s <FILE> [-n <NAME>] [--dialect <D>] Calculate schema diff and create incremental migration
 
 EXAMPLES:
     npx migradb create add_users_table --dir ./migrations
+    npx migradb diff -s schema/drawdb.json --name add_avatar --dialect postgres
     npx migradb generate -s drawdb.json -l sql -o ./migrations -p postgres
     npx migradb generate -s drawdb.json -l ts -o ./src/models
 `);
@@ -40,6 +42,14 @@ function parseArgs(args) {
       flags.pkg = args[++i];
     } else if (arg === '-d' || arg === '--dir' || arg === '--migrations-dir') {
       flags.dir = args[++i];
+    } else if (arg === '-n' || arg === '--name') {
+      flags.name = args[++i];
+    } else if (arg === '--dialect') {
+      flags.dialect = args[++i];
+    } else if (arg === '--schema-dir') {
+      flags.schemaDir = args[++i];
+    } else if (arg === '--full') {
+      flags.full = true;
     } else if (arg === '-h' || arg === '--help') {
       flags.help = true;
     } else {
@@ -140,6 +150,35 @@ function main() {
       } else {
         console.error(`❌ Codegen failed: ${res.error}`);
         process.exit(1);
+      }
+      break;
+    }
+
+    case 'diff': {
+      if (!flags.schema) {
+        console.error('Error: --schema (-s) path is required.');
+        process.exit(1);
+      }
+      const { diffDrawDB } = require('../index');
+      const name = flags.name || positional[0] || 'sync_drawdb';
+      const dialect = flags.dialect || 'postgres';
+      const schemaDir = flags.schemaDir || './schema';
+
+      const res = diffDrawDB(flags.schema, dir, schemaDir, name, dialect, !!flags.full);
+      if (!res.success && res.error) {
+        console.error(`❌ Diff failed: ${res.error}`);
+        process.exit(1);
+      }
+      if (res.isEmpty) {
+        console.log(`\n${res.diffSummary}`);
+        console.log('No migration file was created.\n');
+      } else {
+        console.log(`\n${res.diffSummary}\n`);
+        console.log(`Created incremental migration (${dialect} dialect):`);
+        console.log(`  - ${res.migrationPath}`);
+        console.log('Updated schema snapshots:');
+        console.log(`  - ${schemaDir}/drawdb_snapshot.json`);
+        console.log(`  - ${dir}/.schema_snapshot.json\n`);
       }
       break;
     }

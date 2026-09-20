@@ -7,6 +7,8 @@ Complete API reference for the MigrDB Python package.
 ```python
 from migradb import (
     Migrator,
+    sync_database,
+    detect_dialect,
     run_on_connection,
     status_on_connection,
     generate_models,
@@ -15,7 +17,39 @@ from migradb import (
 
 ## Functions
 
+### `sync_database(conn, ...)`
+
+Synchronizes a live database connection against a DrawDB schema file with dynamic multi-dialect translation and snapshot tracking.
+
+```python
+def sync_database(
+    conn: Any,
+    schema: str = "./schema/drawdb.json",
+    migrations_dir: str = "./migrations",
+    schema_dir: str = "./schema",
+    dialect: Optional[str] = None,
+    save_migration_file: bool = True,
+    migration_name: str = "sync_drawdb",
+    force_full: bool = False,
+) -> ResultDict: ...
+```
+
+- **Features**:
+  - Auto-creates `./schema` and `./migrations` folders if missing.
+  - Generates dialect-accurate DDL for PostgreSQL (default), MySQL, and SQLite.
+  - Zero migration regeneration required when switching database engines midway.
+- **Returns**: `ResultDict` containing `success`, `is_empty`, `applied` statements count, `diff_summary`, `migration_path`, `statements`, and optional `error`.
+
+### `detect_dialect(conn)`
+
+Infers the database dialect (`'postgres'`, `'mysql'`, or `'sqlite'`) from the DB-API 2.0 connection.
+
+```python
+def detect_dialect(conn: Any) -> str: ...
+```
+
 ### `run_on_connection(conn, migrations_dir)`
+
 
 Executes all pending migrations directly against a live Python DB-API 2.0 connection within an atomic transaction.
 

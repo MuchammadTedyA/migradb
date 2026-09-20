@@ -83,6 +83,123 @@ struct GenerateResult {
     error: Option<String>,
 }
 
+#[pyclass]
+#[derive(Clone, Debug)]
+struct DiffResult {
+    #[pyo3(get)]
+    success: bool,
+    #[pyo3(get)]
+    migration_path: Option<String>,
+    #[pyo3(get)]
+    diff_summary: String,
+    #[pyo3(get)]
+    is_empty: bool,
+    #[pyo3(get)]
+    statements: Vec<String>,
+    #[pyo3(get)]
+    error: Option<String>,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+struct SyncPlan {
+    #[pyo3(get)]
+    success: bool,
+    #[pyo3(get)]
+    is_empty: bool,
+    #[pyo3(get)]
+    diff_summary: String,
+    #[pyo3(get)]
+    statements: Vec<String>,
+    #[pyo3(get)]
+    sql: String,
+    #[pyo3(get)]
+    dialect: String,
+    #[pyo3(get)]
+    error: Option<String>,
+}
+
+#[pyfunction]
+#[pyo3(signature = (schema_path, migrations_dir=None, schema_dir=None, migration_name=None, dialect=None, force_full=false))]
+fn diff_drawdb(
+    schema_path: &str,
+    migrations_dir: Option<&str>,
+    schema_dir: Option<&str>,
+    migration_name: Option<&str>,
+    dialect: Option<&str>,
+    force_full: bool,
+) -> DiffResult {
+    let mig_dir = migrations_dir.unwrap_or("./migrations");
+    let sch_dir = schema_dir.unwrap_or("./schema");
+    let name = migration_name.unwrap_or("sync_drawdb");
+
+    match migration_engine::codegen::diff_drawdb(
+        schema_path,
+        mig_dir,
+        sch_dir,
+        name,
+        dialect,
+        force_full,
+    ) {
+        Ok(res) => DiffResult {
+            success: res.success,
+            migration_path: res.migration_path,
+            diff_summary: res.diff_summary,
+            is_empty: res.is_empty,
+            statements: res.statements,
+            error: res.error,
+        },
+        Err(e) => DiffResult {
+            success: false,
+            migration_path: None,
+            diff_summary: String::new(),
+            is_empty: false,
+            statements: Vec::new(),
+            error: Some(e.to_string()),
+        },
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (schema_path, migrations_dir=None, schema_dir=None, dialect=None, force_full=false))]
+fn plan_sync_drawdb(
+    schema_path: &str,
+    migrations_dir: Option<&str>,
+    schema_dir: Option<&str>,
+    dialect: Option<&str>,
+    force_full: bool,
+) -> SyncPlan {
+    let mig_dir = migrations_dir.unwrap_or("./migrations");
+    let sch_dir = schema_dir.unwrap_or("./schema");
+
+    match migration_engine::codegen::plan_sync_drawdb(
+        schema_path,
+        mig_dir,
+        sch_dir,
+        dialect,
+        force_full,
+    ) {
+        Ok(res) => SyncPlan {
+            success: res.success,
+            is_empty: res.is_empty,
+            diff_summary: res.diff_summary,
+            statements: res.statements,
+            sql: res.sql,
+            dialect: res.dialect,
+            error: res.error,
+        },
+        Err(e) => SyncPlan {
+            success: false,
+            is_empty: false,
+            diff_summary: String::new(),
+            statements: Vec::new(),
+            sql: String::new(),
+            dialect: String::new(),
+            error: Some(e.to_string()),
+        },
+    }
+}
+
 #[pyfunction]
 #[pyo3(signature = (schema_path, target_lang, output_dir, pkg_or_namespace=None))]
 fn generate_models(
@@ -235,6 +352,64 @@ impl Migrator {
             },
         }
     }
+
+    #[pyo3(signature = (schema_path, migration_name=None, dialect=None, force_full=false))]
+    fn diff_drawdb(
+        &self,
+        schema_path: &str,
+        migration_name: Option<&str>,
+        dialect: Option<&str>,
+        force_full: bool,
+    ) -> DiffResult {
+        let name = migration_name.unwrap_or("sync_drawdb");
+        match self.inner.diff_drawdb(schema_path, name, dialect, force_full) {
+            Ok(res) => DiffResult {
+                success: res.success,
+                migration_path: res.migration_path,
+                diff_summary: res.diff_summary,
+                is_empty: res.is_empty,
+                statements: res.statements,
+                error: res.error,
+            },
+            Err(e) => DiffResult {
+                success: false,
+                migration_path: None,
+                diff_summary: String::new(),
+                is_empty: false,
+                statements: Vec::new(),
+                error: Some(e.to_string()),
+            },
+        }
+    }
+
+    #[pyo3(signature = (schema_path, dialect=None, force_full=false))]
+    fn plan_sync_drawdb(
+        &self,
+        schema_path: &str,
+        dialect: Option<&str>,
+        force_full: bool,
+    ) -> SyncPlan {
+        match self.inner.plan_sync_drawdb(schema_path, dialect, force_full) {
+            Ok(res) => SyncPlan {
+                success: res.success,
+                is_empty: res.is_empty,
+                diff_summary: res.diff_summary,
+                statements: res.statements,
+                sql: res.sql,
+                dialect: res.dialect,
+                error: res.error,
+            },
+            Err(e) => SyncPlan {
+                success: false,
+                is_empty: false,
+                diff_summary: String::new(),
+                statements: Vec::new(),
+                sql: String::new(),
+                dialect: String::new(),
+                error: Some(e.to_string()),
+            },
+        }
+    }
 }
 
 #[pymodule]
@@ -247,6 +422,10 @@ fn migration_engine_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CreateResult>()?;
     m.add_class::<RemoveResult>()?;
     m.add_class::<GenerateResult>()?;
+    m.add_class::<DiffResult>()?;
+    m.add_class::<SyncPlan>()?;
     m.add_function(wrap_pyfunction!(generate_models, m)?)?;
+    m.add_function(wrap_pyfunction!(diff_drawdb, m)?)?;
+    m.add_function(wrap_pyfunction!(plan_sync_drawdb, m)?)?;
     Ok(())
 }
